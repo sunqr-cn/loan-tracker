@@ -128,7 +128,16 @@ export default function Charts() {
       gradient.addColorStop(1, d.paid ? 'rgba(78,204,163,0.3)' : 'rgba(226,176,74,0.3)');
       ctx.fillStyle = gradient;
       ctx.beginPath();
-      ctx.roundRect(x, y, barWidth, hBar, [4, 4, 0, 0]);
+      // 兼容性圆角矩形绘制
+      const r = Math.min(4, barWidth / 2, hBar / 2);
+      ctx.moveTo(x + r, y);
+      ctx.lineTo(x + barWidth - r, y);
+      ctx.arcTo(x + barWidth, y, x + barWidth, y + r, r);
+      ctx.lineTo(x + barWidth, y + hBar);
+      ctx.lineTo(x, y + hBar);
+      ctx.lineTo(x, y + r);
+      ctx.arcTo(x, y, x + r, y, r);
+      ctx.closePath();
       ctx.fill();
 
       // 期数标签
