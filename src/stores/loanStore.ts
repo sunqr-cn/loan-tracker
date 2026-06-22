@@ -1,21 +1,27 @@
 import { create } from 'zustand';
-import type { LoanInfo, ScheduleItem, PrepaymentRecord, LoanData } from '@/types/loan';
+import type { LoanInfo, ScheduleItem, PrepaymentRecord, RateChangeRecord, LoanData } from '@/types/loan';
 import { generateSchedule, generateId } from '@/utils/calculator';
 
-const STORAGE_KEY = 'loan_repayment_data';
+const STORAGE_KEY = 'loan_repayment_data_v2';
 
 interface LoanStore {
   loanInfo: LoanInfo | null;
   schedule: ScheduleItem[];
   prepayments: PrepaymentRecord[];
+  rateChanges: RateChangeRecord[];
   hasData: boolean;
+  activeTab: 'dashboard' | 'config' | 'plan';
 
+  setActiveTab: (tab: 'dashboard' | 'config' | 'plan') => void;
   setLoanInfo: (info: LoanInfo) => void;
-  generatePlan: (info: LoanInfo, prepayments?: PrepaymentRecord[]) => void;
+  generatePlan: (info: LoanInfo) => void;
   togglePaid: (period: number) => void;
   addPrepayment: (record: Omit<PrepaymentRecord, 'id'>) => void;
   updatePrepayment: (id: string, record: Omit<PrepaymentRecord, 'id'>) => void;
   deletePrepayment: (id: string) => void;
+  addRateChange: (record: Omit<RateChangeRecord, 'id'>) => void;
+  updateRateChange: (id: string, record: Omit<RateChangeRecord, 'id'>) => void;
+  deleteRateChange: (id: string) => void;
   exportData: () => void;
   importData: (jsonStr: string) => boolean;
   resetData: () => void;
@@ -23,24 +29,41 @@ interface LoanStore {
   saveToStorage: () => void;
 }
 
-function recalcAll(loanInfo: LoanInfo, prepayments: PrepaymentRecord[]): ScheduleItem[] {
-  return generateSchedule(loanInfo, prepayments);
+function recalcAll(
+  loanInfo: LoanInfo,
+  prepayments: PrepaymentRecord[],
+  rateChanges: RateChangeRecord[]
+): ScheduleItem[] {
+  return generateSchedule(loanInfo, prepayments, rateChanges);
+}
+
+function preservePaidStatus(oldSchedule: ScheduleItem[], newSchedule: ScheduleItem[]): ScheduleItem[] {
+  const paidMap = new Map(oldSchedule.map((s) => [s.period, s.paid]));
+  return newSchedule.map((s) => ({
+    ...s,
+    paid: paidMap.get(s.period) || false,
+  }));
 }
 
 export const useLoanStore = create<LoanStore>((set, get) => ({
   loanInfo: null,
   schedule: [],
   prepayments: [],
+  rateChanges: [],
   hasData: false,
+  activeTab: 'dashboard',
+
+  setActiveTab: (tab) => set({ activeTab: tab }),
 
   setLoanInfo: (info) => set({ loanInfo: info }),
 
-  generatePlan: (info, prepayments = []) => {
-    const schedule = generateSchedule(info, prepayments);
+  generatePlan: (info) => {
+    const prepayments = get().prepayments;
+    const rateChanges = get().rateChanges;
+    const schedule = generateSchedule(info, prepayments, rateChanges);
     set({
       loanInfo: info,
       schedule,
-      prepayments,
       hasData: true,
     });
     get().saveToStorage();
@@ -61,17 +84,9 @@ export const useLoanStore = create<LoanStore>((set, get) => ({
     const loanInfo = get().loanInfo;
     if (!loanInfo) return;
 
-    const schedule = recalcAll(loanInfo, prepayments);
-    // 保留已标记的还款状态
-    const oldSchedule = get().schedule;
-    const paidMap = new Map(oldSchedule.map((s) => [s.period, s.paid]));
-
-    const updatedSchedule = schedule.map((s) => ({
-      ...s,
-      paid: paidMap.get(s.period) || false,
-    }));
-
-    set({ prepayments, schedule: updatedSchedule });
+    const newSchedule = recalcAll(loanInfo, prepayments, get().rateChanges);
+    const schedule = preservePaidStatus(get().schedule, newSchedule);
+    set({ prepayments, schedule });
     get().saveToStorage();
   },
 
@@ -82,16 +97,9 @@ export const useLoanStore = create<LoanStore>((set, get) => ({
     const loanInfo = get().loanInfo;
     if (!loanInfo) return;
 
-    const schedule = recalcAll(loanInfo, prepayments);
-    const oldSchedule = get().schedule;
-    const paidMap = new Map(oldSchedule.map((s) => [s.period, s.paid]));
-
-    const updatedSchedule = schedule.map((s) => ({
-      ...s,
-      paid: paidMap.get(s.period) || false,
-    }));
-
-    set({ prepayments, schedule: updatedSchedule });
+    const newSchedule = recalcAll(loanInfo, prepayments, get().rateChanges);
+    const schedule = preservePaidStatus(get().schedule, newSchedule);
+    set({ prepayments, schedule });
     get().saveToStorage();
   },
 
@@ -100,19 +108,46 @@ export const useLoanStore = create<LoanStore>((set, get) => ({
     const loanInfo = get().loanInfo;
     if (!loanInfo) return;
 
-    const schedule = recalcAll(loanInfo, prepayments);
-    const oldSchedule = get().schedule;
-    const paidMap = new Map(oldSchedule.map((s) => [s.period, s.paid]));
+    const newSchedule = recalcAll(loanInfo, prepayments, get().rateChanges);
+    const schedule = preservePaidStatus(get().schedule, newSchedule);
+    set({ prepayments, schedule });
+    get().saveToStorage();
+  },
 
-    const updatedSchedule = schedule.map((s) => {
-      const wasPaid = paidMap.get(s.period);
-      return {
-        ...s,
-        paid: wasPaid !== undefined ? wasPaid : false,
-      };
-    });
+  addRateChange: (record) => {
+    const id = generateId();
+    const newRecord: RateChangeRecord = { ...record, id };
+    const rateChanges = [...get().rateChanges, newRecord];
+    const loanInfo = get().loanInfo;
+    if (!loanInfo) return;
 
-    set({ prepayments, schedule: updatedSchedule });
+    const newSchedule = recalcAll(loanInfo, get().prepayments, rateChanges);
+    const schedule = preservePaidStatus(get().schedule, newSchedule);
+    set({ rateChanges, schedule });
+    get().saveToStorage();
+  },
+
+  updateRateChange: (id, record) => {
+    const rateChanges = get().rateChanges.map((r) =>
+      r.id === id ? { ...record, id } : r
+    );
+    const loanInfo = get().loanInfo;
+    if (!loanInfo) return;
+
+    const newSchedule = recalcAll(loanInfo, get().prepayments, rateChanges);
+    const schedule = preservePaidStatus(get().schedule, newSchedule);
+    set({ rateChanges, schedule });
+    get().saveToStorage();
+  },
+
+  deleteRateChange: (id) => {
+    const rateChanges = get().rateChanges.filter((r) => r.id !== id);
+    const loanInfo = get().loanInfo;
+    if (!loanInfo) return;
+
+    const newSchedule = recalcAll(loanInfo, get().prepayments, rateChanges);
+    const schedule = preservePaidStatus(get().schedule, newSchedule);
+    set({ rateChanges, schedule });
     get().saveToStorage();
   },
 
@@ -122,6 +157,7 @@ export const useLoanStore = create<LoanStore>((set, get) => ({
       loanInfo: state.loanInfo!,
       schedule: state.schedule,
       prepayments: state.prepayments,
+      rateChanges: state.rateChanges,
       meta: {
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
@@ -146,6 +182,7 @@ export const useLoanStore = create<LoanStore>((set, get) => ({
         loanInfo: data.loanInfo,
         schedule: data.schedule,
         prepayments: data.prepayments || [],
+        rateChanges: data.rateChanges || [],
         hasData: true,
       });
       get().saveToStorage();
@@ -160,6 +197,7 @@ export const useLoanStore = create<LoanStore>((set, get) => ({
       loanInfo: null,
       schedule: [],
       prepayments: [],
+      rateChanges: [],
       hasData: false,
     });
     localStorage.removeItem(STORAGE_KEY);
@@ -175,6 +213,7 @@ export const useLoanStore = create<LoanStore>((set, get) => ({
         loanInfo: data.loanInfo,
         schedule: data.schedule,
         prepayments: data.prepayments || [],
+        rateChanges: data.rateChanges || [],
         hasData: true,
       });
       return true;
@@ -190,6 +229,7 @@ export const useLoanStore = create<LoanStore>((set, get) => ({
       loanInfo: state.loanInfo,
       schedule: state.schedule,
       prepayments: state.prepayments,
+      rateChanges: state.rateChanges,
       meta: {
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),

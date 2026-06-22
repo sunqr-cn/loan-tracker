@@ -7,7 +7,11 @@ export default {
     container: {
       center: true,
     },
-    extend: {},
+    extend: {
+      borderWidth: {
+        '3': '3px',
+      },
+    },
   },
   plugins: [],
 };

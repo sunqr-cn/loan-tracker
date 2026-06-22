@@ -15,6 +15,7 @@ export interface ScheduleItem {
   remainingPrincipal: number;
   paid: boolean;
   isPrepaymentPoint: boolean;
+  isRateChangePoint: boolean;
 }
 
 export interface PrepaymentRecord {
@@ -30,10 +31,21 @@ export interface PrepaymentRecord {
   newMonthlyPayment: number;
 }
 
+// 利率变更记录（参考银行LPR浮动利率调整）
+export interface RateChangeRecord {
+  id: string;
+  date: string;           // 利率调整生效日期
+  oldRate: number;         // 调整前年利率（%）
+  newRate: number;         // 调整后年利率（%）
+  beforeRemainingPrincipal: number; // 调整时剩余本金
+  remainingMonths: number;  // 调整时剩余期数
+}
+
 export interface LoanData {
   loanInfo: LoanInfo;
   schedule: ScheduleItem[];
   prepayments: PrepaymentRecord[];
+  rateChanges: RateChangeRecord[];
   meta: {
     createdAt: string;
     updatedAt: string;
