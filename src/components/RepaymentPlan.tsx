@@ -111,19 +111,24 @@ export default function RepaymentPlan() {
         </div>
       </div>
 
-      {/* 图例 */}
-      <div className="flex items-center gap-4 text-xs text-gray-400 px-2">
-        <div className="flex items-center gap-1.5">
-          <div className="w-3 h-3 rounded border-l-3 border-blue-500" />
-          <span>提前还款重算点</span>
+      {/* 提示 + 图例 */}
+      <div className="space-y-2">
+        <div className="text-xs text-gray-400 px-2">
+          💡 已还款状态根据当前日期自动标记（还款日期 ≤ 今天 = 已还），也可手动勾选调整
         </div>
-        <div className="flex items-center gap-1.5">
-          <div className="w-3 h-3 rounded border-l-3 border-orange-400" />
-          <span>利率变更点</span>
-        </div>
-        <div className="flex items-center gap-1.5">
-          <div className="w-3 h-3 rounded bg-green-50/40" />
-          <span>已还款</span>
+        <div className="flex items-center gap-4 text-xs text-gray-400 px-2 flex-wrap">
+          <div className="flex items-center gap-1.5">
+            <div className="w-3 h-3 rounded border-l-3 border-blue-500" />
+            <span>提前还款重算点</span>
+          </div>
+          <div className="flex items-center gap-1.5">
+            <div className="w-3 h-3 rounded border-l-3 border-orange-400" />
+            <span>利率变更点</span>
+          </div>
+          <div className="flex items-center gap-1.5">
+            <div className="w-3 h-3 rounded bg-green-50/40" />
+            <span>已还款</span>
+          </div>
         </div>
       </div>
     </div>

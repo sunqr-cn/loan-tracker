@@ -1,5 +1,5 @@
 import { useLoanStore } from '@/stores/loanStore';
-import { formatMoney } from '@/utils/calculator';
+import { formatMoney, getCurrentRemainingPrincipal } from '@/utils/calculator';
 
 export default function Dashboard() {
   const { schedule, loanInfo, prepayments, rateChanges, setActiveTab } = useLoanStore();
@@ -23,10 +23,25 @@ export default function Dashboard() {
   const totalPeriods = schedule.length;
   const paidPrincipal = schedule.filter((s) => s.paid).reduce((sum, s) => sum + s.principal, 0);
   const paidInterest = schedule.filter((s) => s.paid).reduce((sum, s) => sum + s.interest, 0);
+
+  // 总利息 = 所有期数利息之和
   const totalInterest = schedule.reduce((sum, s) => sum + s.interest, 0);
-  const totalPrincipal = schedule.reduce((sum, s) => sum + s.principal, 0);
-  const remainingPrincipal = schedule[schedule.length - 1]?.remainingPrincipal || 0;
+
+  // 总本金 = 贷款总额（含提前还款本金）
+  const prepaymentTotal = prepayments.reduce((sum, p) => sum + p.amount, 0);
+  const totalPrincipal = loanInfo?.totalAmount || 0;
+
+  // 当前剩余本金（根据今天日期计算，而非取最后一期）
+  const remainingPrincipal = getCurrentRemainingPrincipal(schedule);
+
+  // 下期还款（第一个未还款的期数）
   const nextPayment = schedule.find((s) => !s.paid);
+
+  // 已还总额 = 已还本金 + 已还利息 + 已提前还款
+  const paidAmount = paidPrincipal + paidInterest + prepaymentTotal;
+
+  // 总还款额 = 贷款总额 + 总利息
+  const totalAmount = totalPrincipal + totalInterest;
 
   const stats = [
     { label: '贷款总额', value: `¥${formatMoney(loanInfo?.totalAmount || 0)}`, color: 'text-blue-600' },
@@ -48,6 +63,32 @@ export default function Dashboard() {
         ))}
       </div>
 
+      {/* 下期还款提醒（突出显示） */}
+      <div className="bg-gradient-to-r from-blue-600 to-blue-500 rounded-xl p-5 text-white shadow-lg shadow-blue-600/20">
+        <div className="flex items-center justify-between flex-wrap gap-4">
+          <div>
+            <div className="text-sm text-blue-100 mb-1">📅 下期还款</div>
+            {nextPayment ? (
+              <>
+                <div className="text-2xl font-bold">¥{formatMoney(nextPayment.monthlyPayment)}</div>
+                <div className="text-sm text-blue-100 mt-1">
+                  {nextPayment.date} · 第 {nextPayment.period} 期
+                </div>
+              </>
+            ) : (
+              <div className="text-2xl font-bold">✅ 贷款已全部还清</div>
+            )}
+          </div>
+          {nextPayment && (
+            <div className="text-right">
+              <div className="text-xs text-blue-100 mb-1">本息构成</div>
+              <div className="text-sm">本金 ¥{formatMoney(nextPayment.principal)}</div>
+              <div className="text-sm">利息 ¥{formatMoney(nextPayment.interest)}</div>
+            </div>
+          )}
+        </div>
+      </div>
+
       {/* 图表区 */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <ChartCard title="本金与利息占比">
@@ -63,56 +104,17 @@ export default function Dashboard() {
           <AreaChart data={schedule.map((s) => ({ x: s.period, y: s.remainingPrincipal }))} />
         </ChartCard>
 
-        <ChartCard title="月度还款明细（近12期）">
-          <BarChart data={schedule.slice(0, 12).map((s) => ({
-            label: `${s.period}`,
-            principal: s.principal,
-            interest: s.interest,
-            paid: s.paid,
-          }))} />
-        </ChartCard>
-
         <ChartCard title="还款进度">
           <ProgressRing
             total={totalPeriods}
             paid={totalPaid}
-            paidAmount={paidPrincipal + paidInterest}
-            totalAmount={totalPrincipal + totalInterest}
+            paidAmount={paidAmount}
+            totalAmount={totalAmount}
           />
         </ChartCard>
-      </div>
 
-      {/* 下期提醒 + 事件记录 */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <div className="bg-white rounded-xl p-5 border border-gray-100 shadow-sm">
-          <h3 className="text-sm font-semibold text-gray-700 mb-3">📅 下期还款</h3>
-          {nextPayment ? (
-            <div className="space-y-2">
-              <div className="flex justify-between text-sm">
-                <span className="text-gray-400">还款日期</span>
-                <span className="font-medium text-gray-700">{nextPayment.date}</span>
-              </div>
-              <div className="flex justify-between text-sm">
-                <span className="text-gray-400">应还金额</span>
-                <span className="font-bold text-blue-600">¥{formatMoney(nextPayment.monthlyPayment)}</span>
-              </div>
-              <div className="flex justify-between text-sm">
-                <span className="text-gray-400">其中本金</span>
-                <span className="text-gray-600">¥{formatMoney(nextPayment.principal)}</span>
-              </div>
-              <div className="flex justify-between text-sm">
-                <span className="text-gray-400">其中利息</span>
-                <span className="text-gray-600">¥{formatMoney(nextPayment.interest)}</span>
-              </div>
-            </div>
-          ) : (
-            <p className="text-green-600 font-medium">✅ 贷款已全部还清</p>
-          )}
-        </div>
-
-        <div className="bg-white rounded-xl p-5 border border-gray-100 shadow-sm">
-          <h3 className="text-sm font-semibold text-gray-700 mb-3">📝 贷款事件</h3>
-          <div className="space-y-2 text-sm">
+        <ChartCard title="📝 贷款事件">
+          <div className="space-y-2.5 text-sm">
             <div className="flex justify-between">
               <span className="text-gray-400">还款方式</span>
               <span className="text-gray-600">{loanInfo?.repaymentType === 'equalInstallment' ? '等额本息' : '等额本金'}</span>
@@ -122,15 +124,23 @@ export default function Dashboard() {
               <span className="text-gray-600">{loanInfo?.annualRate}%</span>
             </div>
             <div className="flex justify-between">
-              <span className="text-gray-400">提前还款次数</span>
-              <span className="text-gray-600">{prepayments.length} 次</span>
+              <span className="text-gray-400">贷款期限</span>
+              <span className="text-gray-600">{loanInfo?.totalMonths} 期 ({Math.round((loanInfo?.totalMonths || 0) / 12 * 10) / 10} 年)</span>
             </div>
             <div className="flex justify-between">
-              <span className="text-gray-400">利率调整次数</span>
+              <span className="text-gray-400">提前还款</span>
+              <span className="text-gray-600">{prepayments.length} 次 · ¥{formatMoney(prepaymentTotal)}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-gray-400">利率调整</span>
               <span className="text-gray-600">{rateChanges.length} 次</span>
             </div>
+            <div className="flex justify-between">
+              <span className="text-gray-400">已还总额</span>
+              <span className="text-gray-600 font-medium">¥{formatMoney(paidAmount)}</span>
+            </div>
           </div>
-        </div>
+        </ChartCard>
       </div>
     </div>
   );
@@ -147,6 +157,7 @@ function ChartCard({ title, children }: { title: string; children: React.ReactNo
 
 function PieChart({ data }: { data: { label: string; value: number; color: string }[] }) {
   const total = data.reduce((s, d) => s + d.value, 0);
+  if (total === 0) return <div className="text-center text-gray-400 py-8">暂无数据</div>;
   let cumulativeAngle = -Math.PI / 2;
   const radius = 70;
   const cx = 90;
@@ -232,46 +243,6 @@ function AreaChart({ data }: { data: { x: number; y: number }[] }) {
       ))}
       <path d={areaD} fill="url(#areaGrad)" />
       <path d={pathD} fill="none" stroke="#2563eb" strokeWidth="2" />
-    </svg>
-  );
-}
-
-function BarChart({ data }: { data: { label: string; principal: number; interest: number; paid: boolean }[] }) {
-  if (data.length === 0) return null;
-  const maxVal = Math.max(...data.map((d) => d.principal + d.interest));
-  const w = 400;
-  const h = 160;
-  const pad = { top: 10, right: 10, bottom: 25, left: 50 };
-  const chartW = w - pad.left - pad.right;
-  const chartH = h - pad.top - pad.bottom;
-  const barW = Math.min(chartW / data.length * 0.6, 24);
-
-  return (
-    <svg width="100%" height={h} viewBox={`0 0 ${w} ${h}`}>
-      {[0, 0.25, 0.5, 0.75, 1].map((r, i) => (
-        <g key={i}>
-          <line x1={pad.left} y1={pad.top + chartH * r} x2={w - pad.right} y2={pad.top + chartH * r} stroke="#f0f0f0" />
-          <text x={pad.left - 5} y={pad.top + chartH * r + 4} textAnchor="end" className="text-[10px] fill-gray-400">
-            ¥{Math.round(maxVal * (1 - r) / 1000)}k
-          </text>
-        </g>
-      ))}
-      {data.map((d, i) => {
-        const x = pad.left + (chartW / (data.length - 1 || 1)) * i - barW / 2;
-        const principalH = (d.principal / maxVal) * chartH;
-        const interestH = (d.interest / maxVal) * chartH;
-        return (
-          <g key={i}>
-            <rect x={x} y={pad.top + chartH - principalH - interestH} width={barW} height={interestH}
-              fill={d.paid ? '#fbbf24' : '#fde68a'} rx={2} />
-            <rect x={x} y={pad.top + chartH - principalH} width={barW} height={principalH}
-              fill={d.paid ? '#2563eb' : '#93c5fd'} rx={2} />
-            <text x={x + barW / 2} y={pad.top + chartH + 15} textAnchor="middle" className="text-[10px] fill-gray-400">
-              {d.label}
-            </text>
-          </g>
-        );
-      })}
     </svg>
   );
 }

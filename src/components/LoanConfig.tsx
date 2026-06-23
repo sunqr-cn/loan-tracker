@@ -1,14 +1,14 @@
 import { useState } from 'react';
 import type { LoanInfo, PrepaymentRecord, RateChangeRecord } from '@/types/loan';
 import { useLoanStore } from '@/stores/loanStore';
-import { formatMoney } from '@/utils/calculator';
+import { formatMoney, getCurrentRemainingPrincipal } from '@/utils/calculator';
 import DataManager from './DataManager';
 
 export default function LoanConfig() {
   const {
     loanInfo, schedule, prepayments, rateChanges,
-    generatePlan, addPrepayment, updatePrepayment, deletePrepayment,
-    addRateChange, updateRateChange, deleteRateChange,
+    generatePlan, addPrepayment, deletePrepayment,
+    addRateChange, deleteRateChange,
   } = useLoanStore();
 
   const [totalAmount, setTotalAmount] = useState(loanInfo?.totalAmount?.toString() || '500000');
@@ -30,10 +30,13 @@ export default function LoanConfig() {
     });
   };
 
+  // 当前剩余本金（用于表单提示）
+  const currentRemaining = schedule.length > 0 ? getCurrentRemainingPrincipal(schedule) : 0;
+
   return (
     <div className="space-y-5">
       {/* 贷款基本信息 */}
-      <Section title="🏦 贷款基本信息" desc="录入贷款信息，自动生成还款计划并保存">
+      <Section title="🏦 贷款基本信息" desc="录入贷款信息，自动生成还款计划并保存到本地数据库">
         <form onSubmit={handleGenerate} className="space-y-4">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <Field label="贷款总额（元）">
@@ -120,6 +123,11 @@ export default function LoanConfig() {
 
       {/* 提前还款管理 */}
       <Section title="💰 提前还款管理" desc="录入提前还款，选择缩短年限或缩短月供，自动重算还款计划">
+        {schedule.length > 0 && (
+          <div className="mb-3 text-xs text-gray-500 bg-blue-50/50 rounded-lg px-3 py-2">
+            当前剩余本金：<span className="font-medium text-blue-600">¥{formatMoney(currentRemaining)}</span>
+          </div>
+        )}
         <PrepaymentForm schedule={schedule} onAdd={addPrepayment} />
         {prepayments.length > 0 && (
           <div className="mt-4 overflow-x-auto">
@@ -161,7 +169,7 @@ export default function LoanConfig() {
       </Section>
 
       {/* 数据管理 */}
-      <Section title="🔧 数据管理" desc="导出备份、导入恢复或重置数据">
+      <Section title="🔧 数据管理" desc="导出备份、导入恢复、云同步或重置数据">
         <DataManager />
       </Section>
     </div>
@@ -208,7 +216,7 @@ function RateChangeForm({
       .sort((a, b) => b.period - a.period)[0];
     const remainingPrincipal = lastBefore
       ? lastBefore.remainingPrincipal
-      : schedule[0]?.remainingPrincipal + schedule[0]?.principal || 0;
+      : (schedule[0]?.remainingPrincipal || 0) + (schedule[0]?.principal || 0);
     const remainingMonths = schedule.filter((s) => new Date(s.date) > changeDate).length;
 
     onAdd({
@@ -262,7 +270,7 @@ function PrepaymentForm({
       .sort((a, b) => b.period - a.period)[0];
     const beforeRemaining = lastBefore
       ? lastBefore.remainingPrincipal
-      : schedule[0]?.remainingPrincipal + schedule[0]?.principal || 0;
+      : (schedule[0]?.remainingPrincipal || 0) + (schedule[0]?.principal || 0);
     const afterRemaining = beforeRemaining - amt;
     const remainingAfter = schedule.filter((s) => new Date(s.date) > prepayDate).length;
     const currentMonthly = schedule.find((s) => new Date(s.date) >= prepayDate)?.monthlyPayment || 0;

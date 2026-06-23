@@ -47,7 +47,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
 
       {/* 底部 */}
       <footer className="text-center text-xs text-gray-400 py-4">
-        数据保存在浏览器本地 · 建议定期导出备份
+        数据保存在浏览器 IndexedDB 本地数据库 · 清缓存不丢失 · 支持云同步备份
       </footer>
     </div>
   );

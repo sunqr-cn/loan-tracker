@@ -1,8 +1,8 @@
 import { create } from 'zustand';
 import type { LoanInfo, ScheduleItem, PrepaymentRecord, RateChangeRecord, LoanData } from '@/types/loan';
 import { generateSchedule, generateId } from '@/utils/calculator';
-
-const STORAGE_KEY = 'loan_repayment_data_v2';
+import { loadFromDB, saveToDB, clearDB } from '@/utils/db';
+import { uploadToGist, downloadFromGist, getToken, saveToken, getGistId, clearToken } from '@/utils/cloudSync';
 
 interface LoanStore {
   loanInfo: LoanInfo | null;
@@ -10,6 +10,7 @@ interface LoanStore {
   prepayments: PrepaymentRecord[];
   rateChanges: RateChangeRecord[];
   hasData: boolean;
+  isLoading: boolean;
   activeTab: 'dashboard' | 'config' | 'plan';
 
   setActiveTab: (tab: 'dashboard' | 'config' | 'plan') => void;
@@ -25,8 +26,14 @@ interface LoanStore {
   exportData: () => void;
   importData: (jsonStr: string) => boolean;
   resetData: () => void;
-  loadFromStorage: () => boolean;
-  saveToStorage: () => void;
+  loadFromStorage: () => Promise<boolean>;
+  saveToStorage: () => Promise<void>;
+  cloudSync: (token: string) => Promise<{ success: boolean; error?: string }>;
+  cloudRestore: (token: string, gistId?: string) => Promise<{ success: boolean; error?: string }>;
+  saveCloudToken: (token: string) => void;
+  hasCloudToken: () => boolean;
+  clearCloudToken: () => void;
+  getCloudGistId: () => string | null;
 }
 
 function recalcAll(
@@ -37,12 +44,27 @@ function recalcAll(
   return generateSchedule(loanInfo, prepayments, rateChanges);
 }
 
+/**
+ * 保留已还款状态 - 按日期映射（而非按期数）
+ * 当提前还款导致期数变化时，按日期映射能正确保留已还款状态
+ * 同时保留用户手动取消的已还款状态（日期已过但用户手动标记为未还）
+ */
 function preservePaidStatus(oldSchedule: ScheduleItem[], newSchedule: ScheduleItem[]): ScheduleItem[] {
-  const paidMap = new Map(oldSchedule.map((s) => [s.period, s.paid]));
-  return newSchedule.map((s) => ({
-    ...s,
-    paid: paidMap.get(s.period) || false,
-  }));
+  // 按日期建立旧计划的已还款状态映射
+  const paidMap = new Map<string, boolean>();
+  oldSchedule.forEach((s) => {
+    paidMap.set(s.date, s.paid);
+  });
+
+  return newSchedule.map((s) => {
+    const oldPaid = paidMap.get(s.date);
+    // 如果旧计划中有相同日期的记录，保留其已还款状态
+    // 否则使用新生成的状态（已根据日期自动标记）
+    if (oldPaid !== undefined) {
+      return { ...s, paid: oldPaid };
+    }
+    return s;
+  });
 }
 
 export const useLoanStore = create<LoanStore>((set, get) => ({
@@ -51,6 +73,7 @@ export const useLoanStore = create<LoanStore>((set, get) => ({
   prepayments: [],
   rateChanges: [],
   hasData: false,
+  isLoading: true,
   activeTab: 'dashboard',
 
   setActiveTab: (tab) => set({ activeTab: tab }),
@@ -200,29 +223,32 @@ export const useLoanStore = create<LoanStore>((set, get) => ({
       rateChanges: [],
       hasData: false,
     });
-    localStorage.removeItem(STORAGE_KEY);
+    clearDB();
   },
 
-  loadFromStorage: () => {
+  loadFromStorage: async () => {
     try {
-      const raw = localStorage.getItem(STORAGE_KEY);
-      if (!raw) return false;
-      const data: LoanData = JSON.parse(raw);
-      if (!data.loanInfo || !data.schedule) return false;
+      const data = await loadFromDB();
+      if (!data || !data.loanInfo || !data.schedule) {
+        set({ isLoading: false });
+        return false;
+      }
       set({
         loanInfo: data.loanInfo,
         schedule: data.schedule,
         prepayments: data.prepayments || [],
         rateChanges: data.rateChanges || [],
         hasData: true,
+        isLoading: false,
       });
       return true;
     } catch {
+      set({ isLoading: false });
       return false;
     }
   },
 
-  saveToStorage: () => {
+  saveToStorage: async () => {
     const state = get();
     if (!state.loanInfo) return;
     const data: LoanData = {
@@ -235,6 +261,51 @@ export const useLoanStore = create<LoanStore>((set, get) => ({
         updatedAt: new Date().toISOString(),
       },
     };
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+    await saveToDB(data);
   },
+
+  cloudSync: async (token) => {
+    const state = get();
+    if (!state.loanInfo) {
+      return { success: false, error: '无贷款数据可同步' };
+    }
+    const data: LoanData = {
+      loanInfo: state.loanInfo,
+      schedule: state.schedule,
+      prepayments: state.prepayments,
+      rateChanges: state.rateChanges,
+      meta: {
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      },
+    };
+    const result = await uploadToGist(data, token);
+    if (result.synced) {
+      saveToken(token);
+      return { success: true };
+    }
+    return { success: false, error: result.error };
+  },
+
+  cloudRestore: async (token, gistId) => {
+    const result = await downloadFromGist(token, gistId);
+    if (result.data) {
+      set({
+        loanInfo: result.data.loanInfo,
+        schedule: result.data.schedule,
+        prepayments: result.data.prepayments || [],
+        rateChanges: result.data.rateChanges || [],
+        hasData: true,
+      });
+      saveToken(token);
+      await get().saveToStorage();
+      return { success: true };
+    }
+    return { success: false, error: result.error };
+  },
+
+  saveCloudToken: (token) => saveToken(token),
+  hasCloudToken: () => !!getToken(),
+  clearCloudToken: () => clearToken(),
+  getCloudGistId: () => getGistId(),
 }));
