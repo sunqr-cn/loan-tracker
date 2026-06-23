@@ -195,8 +195,8 @@ export default function DataManager() {
 
       <div className="text-xs text-gray-400 bg-gray-50 rounded-lg px-3 py-2 leading-relaxed">
         ☁️ 数据存服务端（Cloudflare D1），不存本地浏览器，换设备/浏览器都能看到。
-        <br />⏰ 后台每天自动重算还款状态（Worker cron），无需打开页面。
-        <br />🔗 换浏览器时：点「生成同步链接」复制，在新浏览器打开一次即可自动配置。
+        <br />⏰ 后台每天自动重算还款状态（cron-job.org 调用 /api/recalc），无需打开页面。
+        <br />🔗 换浏览器时：点「生成同步链接」复制，在新浏览器打开此链接即可自动配置。
       </div>
     </div>
   );
