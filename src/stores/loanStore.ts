@@ -1,8 +1,11 @@
 import { create } from 'zustand';
 import type { LoanInfo, ScheduleItem, PrepaymentRecord, RateChangeRecord, LoanData } from '@/types/loan';
 import { generateSchedule, generateId } from '@/utils/calculator';
-import { loadFromDB, saveToDB, clearDB } from '@/utils/db';
-import { uploadToGist, downloadFromGist, getToken, saveToken, getGistId, clearToken } from '@/utils/cloudSync';
+import { loadFromSQLite, saveToSQLite, clearSQLite } from '@/utils/sqlite';
+import {
+  uploadToGist, downloadFromGist, getToken, saveToken, getGistId, clearToken,
+  isAutoSyncEnabled, setAutoSync, autoUpload, autoDownload, getLastSyncTime,
+} from '@/utils/cloudSync';
 
 interface LoanStore {
   loanInfo: LoanInfo | null;
@@ -12,6 +15,12 @@ interface LoanStore {
   hasData: boolean;
   isLoading: boolean;
   activeTab: 'dashboard' | 'config' | 'plan';
+  syncStatus: {
+    autoSync: boolean;
+    hasToken: boolean;
+    lastSync: string | null;
+    syncing: boolean;
+  };
 
   setActiveTab: (tab: 'dashboard' | 'config' | 'plan') => void;
   setLoanInfo: (info: LoanInfo) => void;
@@ -34,6 +43,7 @@ interface LoanStore {
   hasCloudToken: () => boolean;
   clearCloudToken: () => void;
   getCloudGistId: () => string | null;
+  toggleAutoSync: (enabled: boolean) => void;
 }
 
 function recalcAll(
@@ -45,12 +55,9 @@ function recalcAll(
 }
 
 /**
- * 保留已还款状态 - 按日期映射（而非按期数）
- * 当提前还款导致期数变化时，按日期映射能正确保留已还款状态
- * 同时保留用户手动取消的已还款状态（日期已过但用户手动标记为未还）
+ * 保留已还款状态 - 按日期映射
  */
 function preservePaidStatus(oldSchedule: ScheduleItem[], newSchedule: ScheduleItem[]): ScheduleItem[] {
-  // 按日期建立旧计划的已还款状态映射
   const paidMap = new Map<string, boolean>();
   oldSchedule.forEach((s) => {
     paidMap.set(s.date, s.paid);
@@ -58,8 +65,6 @@ function preservePaidStatus(oldSchedule: ScheduleItem[], newSchedule: ScheduleIt
 
   return newSchedule.map((s) => {
     const oldPaid = paidMap.get(s.date);
-    // 如果旧计划中有相同日期的记录，保留其已还款状态
-    // 否则使用新生成的状态（已根据日期自动标记）
     if (oldPaid !== undefined) {
       return { ...s, paid: oldPaid };
     }
@@ -75,6 +80,12 @@ export const useLoanStore = create<LoanStore>((set, get) => ({
   hasData: false,
   isLoading: true,
   activeTab: 'dashboard',
+  syncStatus: {
+    autoSync: isAutoSyncEnabled(),
+    hasToken: !!getToken(),
+    lastSync: getLastSyncTime(),
+    syncing: false,
+  },
 
   setActiveTab: (tab) => set({ activeTab: tab }),
 
@@ -223,24 +234,56 @@ export const useLoanStore = create<LoanStore>((set, get) => ({
       rateChanges: [],
       hasData: false,
     });
-    clearDB();
+    clearSQLite();
   },
 
   loadFromStorage: async () => {
     try {
-      const data = await loadFromDB();
-      if (!data || !data.loanInfo || !data.schedule) {
+      // 1. 先从本地 SQLite 加载
+      const data = await loadFromSQLite();
+      if (data && data.loanInfo && data.schedule) {
+        set({
+          loanInfo: data.loanInfo,
+          schedule: data.schedule,
+          prepayments: data.prepayments || [],
+          rateChanges: data.rateChanges || [],
+          hasData: true,
+          isLoading: false,
+        });
+      } else {
         set({ isLoading: false });
-        return false;
       }
-      set({
-        loanInfo: data.loanInfo,
-        schedule: data.schedule,
-        prepayments: data.prepayments || [],
-        rateChanges: data.rateChanges || [],
-        hasData: true,
-        isLoading: false,
-      });
+
+      // 2. 如果开启了自动同步，尝试从云端拉取最新数据
+      if (isAutoSyncEnabled() && getToken() && getGistId()) {
+        set({ syncStatus: { ...get().syncStatus, syncing: true } });
+        const cloudData = await autoDownload();
+        if (cloudData && cloudData.loanInfo) {
+          // 比较更新时间，云端更新则覆盖本地
+          const localData = data;
+          const cloudUpdated = cloudData.meta?.updatedAt || '';
+          const localUpdated = localData?.meta?.updatedAt || '';
+          if (cloudUpdated > localUpdated) {
+            set({
+              loanInfo: cloudData.loanInfo,
+              schedule: cloudData.schedule,
+              prepayments: cloudData.prepayments || [],
+              rateChanges: cloudData.rateChanges || [],
+              hasData: true,
+              isLoading: false,
+            });
+            await saveToSQLite(cloudData);
+          }
+        }
+        set({
+          syncStatus: {
+            ...get().syncStatus,
+            syncing: false,
+            lastSync: getLastSyncTime(),
+          },
+        });
+      }
+
       return true;
     } catch {
       set({ isLoading: false });
@@ -261,7 +304,22 @@ export const useLoanStore = create<LoanStore>((set, get) => ({
         updatedAt: new Date().toISOString(),
       },
     };
-    await saveToDB(data);
+    // 保存到本地 SQLite
+    await saveToSQLite(data);
+
+    // 如果开启自动同步，静默上传到云端
+    if (isAutoSyncEnabled() && getToken()) {
+      autoUpload(data).then((success) => {
+        if (success) {
+          set({
+            syncStatus: {
+              ...get().syncStatus,
+              lastSync: getLastSyncTime(),
+            },
+          });
+        }
+      });
+    }
   },
 
   cloudSync: async (token) => {
@@ -282,6 +340,13 @@ export const useLoanStore = create<LoanStore>((set, get) => ({
     const result = await uploadToGist(data, token);
     if (result.synced) {
       saveToken(token);
+      set({
+        syncStatus: {
+          ...get().syncStatus,
+          hasToken: true,
+          lastSync: new Date().toISOString(),
+        },
+      });
       return { success: true };
     }
     return { success: false, error: result.error };
@@ -306,6 +371,24 @@ export const useLoanStore = create<LoanStore>((set, get) => ({
 
   saveCloudToken: (token) => saveToken(token),
   hasCloudToken: () => !!getToken(),
-  clearCloudToken: () => clearToken(),
+  clearCloudToken: () => {
+    clearToken();
+    setAutoSync(false);
+    set({
+      syncStatus: {
+        autoSync: false,
+        hasToken: false,
+        lastSync: null,
+        syncing: false,
+      },
+    });
+  },
   getCloudGistId: () => getGistId(),
+
+  toggleAutoSync: (enabled) => {
+    setAutoSync(enabled);
+    set({
+      syncStatus: { ...get().syncStatus, autoSync: enabled },
+    });
+  },
 }));

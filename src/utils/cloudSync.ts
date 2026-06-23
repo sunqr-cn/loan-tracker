@@ -168,3 +168,73 @@ export function getSyncInfo(): { hasToken: boolean; gistId: string | null } {
     gistId: getGistId(),
   };
 }
+
+// ============ 自动同步功能 ============
+
+const STORAGE_AUTO_SYNC_KEY = 'github_gist_auto_sync';
+const STORAGE_LAST_SYNC_KEY = 'github_gist_last_sync';
+
+/**
+ * 获取自动同步开关状态
+ */
+export function isAutoSyncEnabled(): boolean {
+  return localStorage.getItem(STORAGE_AUTO_SYNC_KEY) === 'true';
+}
+
+/**
+ * 设置自动同步开关
+ */
+export function setAutoSync(enabled: boolean): void {
+  localStorage.setItem(STORAGE_AUTO_SYNC_KEY, enabled ? 'true' : 'false');
+}
+
+/**
+ * 记录最后同步时间
+ */
+export function setLastSyncTime(time: string): void {
+  localStorage.setItem(STORAGE_LAST_SYNC_KEY, time);
+}
+
+/**
+ * 获取最后同步时间
+ */
+export function getLastSyncTime(): string | null {
+  return localStorage.getItem(STORAGE_LAST_SYNC_KEY);
+}
+
+/**
+ * 自动上传（静默，不抛错）
+ */
+export async function autoUpload(data: LoanData): Promise<boolean> {
+  const token = getToken();
+  if (!token) return false;
+  if (!isAutoSyncEnabled()) return false;
+
+  try {
+    const result = await uploadToGist(data, token);
+    if (result.synced) {
+      setLastSyncTime(new Date().toISOString());
+      return true;
+    }
+    return false;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * 自动下载（静默，不抛错）
+ */
+export async function autoDownload(): Promise<LoanData | null> {
+  const token = getToken();
+  if (!token) return null;
+  if (!isAutoSyncEnabled()) return null;
+  if (!getGistId()) return null;
+
+  try {
+    const result = await downloadFromGist(token);
+    return result.data || null;
+  } catch {
+    return null;
+  }
+}

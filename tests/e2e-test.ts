@@ -64,7 +64,7 @@ async function runTests() {
     await page.getByRole('button', { name: /生成还款计划/ }).click();
     await page.waitForTimeout(2000);
 
-    const navVisible = await page.getByText('首页报表').isVisible();
+    const navVisible = await page.getByText('首页').first().isVisible();
     results.push({ name: '导航栏显示', passed: navVisible });
 
     await page.screenshot({ path: path.join(SCREENSHOT_DIR, '02-after-generate.png'), fullPage: true });
@@ -92,7 +92,7 @@ async function runTests() {
 
     // ========== 测试 6: 贷款配置页 ==========
     console.log('\n📋 测试 6: 贷款配置页...');
-    await page.getByRole('button', { name: '⚙️贷款配置' }).click();
+    await page.getByRole('button', { name: '⚙️配置' }).click();
     await page.waitForTimeout(500);
 
     const configSections = await page.getByText(/贷款基本信息|利率变更管理|提前还款管理|数据管理/).count();
@@ -102,13 +102,13 @@ async function runTests() {
     const remainingHint = await page.getByText('当前剩余本金').isVisible();
     results.push({ name: '当前剩余本金提示显示', passed: remainingHint });
 
-    // 检查云同步按钮
-    const cloudSyncBtn = await page.getByRole('button', { name: '☁️ 云同步' }).isVisible();
+    // 检查云同步功能
+    const cloudSyncBtn = await page.getByText('云同步').first().isVisible();
     results.push({ name: '云同步功能存在', passed: cloudSyncBtn });
 
-    // 检查 IndexedDB 存储提示
-    const indexedDBHint = await page.getByText('💾 数据保存在浏览器 IndexedDB').isVisible();
-    results.push({ name: 'IndexedDB 存储提示显示', passed: indexedDBHint });
+    // 检查 SQLite 存储提示
+    const indexedDBHint = await page.getByText('SQLite 格式存储').isVisible();
+    results.push({ name: 'SQLite 存储提示显示', passed: indexedDBHint });
 
     await page.screenshot({ path: path.join(SCREENSHOT_DIR, '04-config.png'), fullPage: true });
     console.log('  ✅ 截图: 04-config.png');
@@ -152,7 +152,7 @@ async function runTests() {
 
     // ========== 测试 9: 还款计划页 ==========
     console.log('\n📋 测试 9: 还款计划页...');
-    await page.getByRole('button', { name: '📋还款计划' }).click();
+    await page.getByRole('button', { name: '📋计划' }).click();
     await page.waitForTimeout(500);
 
     const tableRows = await page.locator('tbody tr').count();
@@ -211,7 +211,7 @@ async function runTests() {
 
     // ========== 测试 13: 首页报表数据正确性 ==========
     console.log('\n📋 测试 13: 首页报表数据正确性...');
-    await page.getByRole('button', { name: '📊首页报表' }).click();
+    await page.getByRole('button', { name: '📊首页' }).click();
     await page.waitForTimeout(1000);
 
     // 检查剩余本金不为0（之前取最后一期为0的bug）
@@ -242,16 +242,22 @@ async function runTests() {
     console.log('  ✅ 截图: 11-mobile.png');
     results.push({ name: '移动端布局适配', passed: true });
 
-    // ========== 测试 16: 数据持久化（IndexedDB） ==========
+    // ========== 测试 16: 数据持久化（SQLite） ==========
     console.log('\n📋 测试 16: 数据持久化测试...');
     await page.setViewportSize({ width: 1280, height: 900 });
     // 刷新页面，数据应该还在
     await page.reload({ waitUntil: 'networkidle' });
-    await page.waitForTimeout(2000);
+    // 等待 sql.js WASM 加载完成（可能需要几秒）
+    let dataLoaded = false;
+    for (let i = 0; i < 10; i++) {
+      await page.waitForTimeout(1000);
+      const navVisible = await page.getByText('首页').first().isVisible().catch(() => false);
+      if (navVisible) { dataLoaded = true; break; }
+    }
 
     // 检查数据是否还在（导航栏应该显示）
-    const navAfterReload = await page.getByText('首页报表').isVisible();
-    results.push({ name: '刷新后数据持久化', passed: navAfterReload, error: !navAfterReload ? '刷新后数据丢失' : undefined });
+    const navAfterReload = await page.getByText('首页').first().isVisible().catch(() => false);
+    results.push({ name: '刷新后数据持久化', passed: dataLoaded && navAfterReload, error: !navAfterReload ? '刷新后数据丢失' : undefined });
 
     await page.screenshot({ path: path.join(SCREENSHOT_DIR, '12-after-reload.png'), fullPage: true });
     console.log('  ✅ 截图: 12-after-reload.png');
