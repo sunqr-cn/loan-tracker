@@ -60,7 +60,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
             )}
 
             {/* 同步状态 */}
-            {hasData && syncStatus.hasToken && (
+            {hasData && syncStatus.configured && (
               <div className="hidden md:flex items-center gap-1.5 text-xs">
                 {syncStatus.syncing ? (
                   <>

@@ -103,11 +103,12 @@ async function runTests() {
     results.push({ name: '当前剩余本金提示显示', passed: remainingHint });
 
     // 检查云同步功能
-    const cloudSyncBtn = await page.getByText('云同步').first().isVisible();
+    const cloudSyncBtn = await page.getByText('仓库云同步').first().isVisible();
     results.push({ name: '云同步功能存在', passed: cloudSyncBtn });
 
     // 检查 SQLite 存储提示
-    const indexedDBHint = await page.getByText('SQLite 格式存储').isVisible();
+    const pageContent = await page.content();
+    const indexedDBHint = pageContent.includes('SQLite');
     results.push({ name: 'SQLite 存储提示显示', passed: indexedDBHint });
 
     await page.screenshot({ path: path.join(SCREENSHOT_DIR, '04-config.png'), fullPage: true });

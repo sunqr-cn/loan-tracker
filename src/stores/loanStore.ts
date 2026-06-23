@@ -3,9 +3,10 @@ import type { LoanInfo, ScheduleItem, PrepaymentRecord, RateChangeRecord, LoanDa
 import { generateSchedule, generateId } from '@/utils/calculator';
 import { loadFromSQLite, saveToSQLite, clearSQLite } from '@/utils/sqlite';
 import {
-  uploadToGist, downloadFromGist, getToken, saveToken, getGistId, clearToken,
+  uploadToRepo, downloadFromRepo, saveConfig, getConfig, clearConfig,
   isAutoSyncEnabled, setAutoSync, autoUpload, autoDownload, getLastSyncTime,
-} from '@/utils/cloudSync';
+  isConfigured, validateConfig,
+} from '@/utils/repoSync';
 
 interface LoanStore {
   loanInfo: LoanInfo | null;
@@ -17,7 +18,7 @@ interface LoanStore {
   activeTab: 'dashboard' | 'config' | 'plan';
   syncStatus: {
     autoSync: boolean;
-    hasToken: boolean;
+    configured: boolean;
     lastSync: string | null;
     syncing: boolean;
   };
@@ -37,13 +38,12 @@ interface LoanStore {
   resetData: () => void;
   loadFromStorage: () => Promise<boolean>;
   saveToStorage: () => Promise<void>;
-  cloudSync: (token: string) => Promise<{ success: boolean; error?: string }>;
-  cloudRestore: (token: string, gistId?: string) => Promise<{ success: boolean; error?: string }>;
-  saveCloudToken: (token: string) => void;
-  hasCloudToken: () => boolean;
-  clearCloudToken: () => void;
-  getCloudGistId: () => string | null;
+  setupSync: (token: string, owner: string, repo: string) => Promise<{ success: boolean; error?: string }>;
+  cloudUpload: () => Promise<{ success: boolean; error?: string }>;
+  cloudDownload: () => Promise<{ success: boolean; error?: string }>;
+  clearSyncConfig: () => void;
   toggleAutoSync: (enabled: boolean) => void;
+  isSyncConfigured: () => boolean;
 }
 
 function recalcAll(
@@ -82,7 +82,7 @@ export const useLoanStore = create<LoanStore>((set, get) => ({
   activeTab: 'dashboard',
   syncStatus: {
     autoSync: isAutoSyncEnabled(),
-    hasToken: !!getToken(),
+    configured: isConfigured(),
     lastSync: getLastSyncTime(),
     syncing: false,
   },
@@ -254,15 +254,14 @@ export const useLoanStore = create<LoanStore>((set, get) => ({
         set({ isLoading: false });
       }
 
-      // 2. 如果开启了自动同步，尝试从云端拉取最新数据
-      if (isAutoSyncEnabled() && getToken() && getGistId()) {
+      // 2. 如果开启了自动同步，从云端拉取最新数据（无需 Token）
+      if (isAutoSyncEnabled() && isConfigured()) {
         set({ syncStatus: { ...get().syncStatus, syncing: true } });
         const cloudData = await autoDownload();
         if (cloudData && cloudData.loanInfo) {
           // 比较更新时间，云端更新则覆盖本地
-          const localData = data;
+          const localUpdated = data?.meta?.updatedAt || '';
           const cloudUpdated = cloudData.meta?.updatedAt || '';
-          const localUpdated = localData?.meta?.updatedAt || '';
           if (cloudUpdated > localUpdated) {
             set({
               loanInfo: cloudData.loanInfo,
@@ -307,8 +306,8 @@ export const useLoanStore = create<LoanStore>((set, get) => ({
     // 保存到本地 SQLite
     await saveToSQLite(data);
 
-    // 如果开启自动同步，静默上传到云端
-    if (isAutoSyncEnabled() && getToken()) {
+    // 如果开启自动同步，静默上传到云端仓库
+    if (isAutoSyncEnabled() && isConfigured()) {
       autoUpload(data).then((success) => {
         if (success) {
           set({
@@ -322,7 +321,24 @@ export const useLoanStore = create<LoanStore>((set, get) => ({
     }
   },
 
-  cloudSync: async (token) => {
+  setupSync: async (token, owner, repo) => {
+    // 验证 Token 和仓库权限
+    const validation = await validateConfig(token, owner, repo);
+    if (!validation.valid) {
+      return { success: false, error: validation.error };
+    }
+    // 保存配置
+    saveConfig(token, owner, repo);
+    set({
+      syncStatus: {
+        ...get().syncStatus,
+        configured: true,
+      },
+    });
+    return { success: true };
+  },
+
+  cloudUpload: async () => {
     const state = get();
     if (!state.loanInfo) {
       return { success: false, error: '无贷款数据可同步' };
@@ -337,13 +353,11 @@ export const useLoanStore = create<LoanStore>((set, get) => ({
         updatedAt: new Date().toISOString(),
       },
     };
-    const result = await uploadToGist(data, token);
-    if (result.synced) {
-      saveToken(token);
+    const result = await uploadToRepo(data);
+    if (result.success) {
       set({
         syncStatus: {
           ...get().syncStatus,
-          hasToken: true,
           lastSync: new Date().toISOString(),
         },
       });
@@ -352,8 +366,8 @@ export const useLoanStore = create<LoanStore>((set, get) => ({
     return { success: false, error: result.error };
   },
 
-  cloudRestore: async (token, gistId) => {
-    const result = await downloadFromGist(token, gistId);
+  cloudDownload: async () => {
+    const result = await downloadFromRepo();
     if (result.data) {
       set({
         loanInfo: result.data.loanInfo,
@@ -362,28 +376,23 @@ export const useLoanStore = create<LoanStore>((set, get) => ({
         rateChanges: result.data.rateChanges || [],
         hasData: true,
       });
-      saveToken(token);
       await get().saveToStorage();
       return { success: true };
     }
     return { success: false, error: result.error };
   },
 
-  saveCloudToken: (token) => saveToken(token),
-  hasCloudToken: () => !!getToken(),
-  clearCloudToken: () => {
-    clearToken();
-    setAutoSync(false);
+  clearSyncConfig: () => {
+    clearConfig();
     set({
       syncStatus: {
         autoSync: false,
-        hasToken: false,
+        configured: false,
         lastSync: null,
         syncing: false,
       },
     });
   },
-  getCloudGistId: () => getGistId(),
 
   toggleAutoSync: (enabled) => {
     setAutoSync(enabled);
@@ -391,4 +400,6 @@ export const useLoanStore = create<LoanStore>((set, get) => ({
       syncStatus: { ...get().syncStatus, autoSync: enabled },
     });
   },
+
+  isSyncConfigured: () => isConfigured(),
 }));
