@@ -34,6 +34,14 @@ interface TimelineEvent {
 }
 
 /**
+ * 解析 YYYY-MM-DD 字符串为本地时间 Date（避免 UTC 偏移导致事件处理错位）
+ */
+function parseDateLocal(dateStr: string): Date {
+  const [y, m, d] = dateStr.split('-').map(Number);
+  return new Date(y, m - 1, d);
+}
+
+/**
  * 获取当前日期字符串 (YYYY-MM-DD)
  */
 function getTodayStr(): string {
@@ -71,8 +79,8 @@ export function generateSchedule(
 
   // 合并所有时间线事件并按日期排序
   const events: TimelineEvent[] = [
-    ...prepayments.map(p => ({ date: new Date(p.date), type: 'prepayment' as const, record: p })),
-    ...rateChanges.map(r => ({ date: new Date(r.date), type: 'rateChange' as const, record: r })),
+    ...prepayments.map(p => ({ date: parseDateLocal(p.date), type: 'prepayment' as const, record: p })),
+    ...rateChanges.map(r => ({ date: parseDateLocal(r.date), type: 'rateChange' as const, record: r })),
   ].sort((a, b) => a.date.getTime() - b.date.getTime());
 
   let eventIndex = 0;

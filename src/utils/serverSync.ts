@@ -108,6 +108,25 @@ export async function saveToServer(data: LoanData): Promise<{ success: boolean; 
 }
 
 /**
+ * 清空服务端数据
+ */
+export async function clearServerData(): Promise<{ success: boolean; error?: string }> {
+  try {
+    const config = getServerConfig();
+    if (!config) return { success: false, error: '未配置服务端地址' };
+    const resp = await fetch(`${config.apiUrl}/api/data`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ loanInfo: null, schedule: null }),
+    });
+    if (!resp.ok) return { success: false, error: `清空失败 (${resp.status})` };
+    return { success: true };
+  } catch (err) {
+    return { success: false, error: (err as Error).message };
+  }
+}
+
+/**
  * 触发服务端重算还款状态（也可由后台 cron 自动执行）
  */
 export async function recalcOnServer(): Promise<{ success: boolean; updated?: number; error?: string }> {

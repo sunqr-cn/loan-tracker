@@ -3,7 +3,7 @@ import type { LoanInfo, ScheduleItem, PrepaymentRecord, RateChangeRecord, LoanDa
 import { generateSchedule, generateId } from '@/utils/calculator';
 import {
   fetchFromServer, saveToServer, saveServerConfig, clearServerConfig,
-  isServerConfigured, testConnection, applySyncFromUrl,
+  clearServerData, isServerConfigured, testConnection, applySyncFromUrl,
 } from '@/utils/serverSync';
 
 interface LoanStore {
@@ -205,9 +205,9 @@ export const useLoanStore = create<LoanStore>((set, get) => ({
       rateChanges: [],
       hasData: false,
     });
-    // 清空服务端数据（保存空数据）
+    // 清空服务端数据
     if (isServerConfigured()) {
-      get().saveToServerStore();
+      clearServerData();
     }
   },
 

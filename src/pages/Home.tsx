@@ -1,27 +1,24 @@
-import { useEffect } from 'react';
 import { useLoanStore } from '@/stores/loanStore';
-import Layout from '@/components/Layout';
-import Dashboard from '@/components/Dashboard';
 import LoanConfig from '@/components/LoanConfig';
+import Dashboard from '@/components/Dashboard';
 import RepaymentPlan from '@/components/RepaymentPlan';
+import Layout from '@/components/Layout';
 
 export default function Home() {
-  const { hasData, isLoading, activeTab, loadFromServer, applySyncFromUrl } = useLoanStore();
+  const { hasData, activeTab } = useLoanStore();
 
-  useEffect(() => {
-    // 先尝试从 URL 应用服务端配置（跨浏览器一键配置），再加载数据
-    applySyncFromUrl();
-    loadFromServer();
-  }, []);
-
-  if (isLoading) {
+  if (!hasData) {
     return (
       <Layout>
-        <div className="flex items-center justify-center py-20">
-          <div className="text-center">
-            <div className="inline-block w-8 h-8 border-3 border-blue-200 border-t-blue-600 rounded-full animate-spin mb-3"></div>
-            <p className="text-sm text-gray-400">从服务端加载数据...</p>
+        <div className="max-w-2xl mx-auto pt-8">
+          <div className="text-center mb-6">
+            <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-blue-600 to-indigo-600 flex items-center justify-center shadow-lg shadow-blue-600/30 mx-auto mb-4">
+              <span className="text-3xl">🏦</span>
+            </div>
+            <h1 className="text-xl font-bold text-gray-800">公积金贷款还款计划</h1>
+            <p className="text-sm text-gray-400 mt-1">录入贷款信息，自动生成还款计划</p>
           </div>
+          <LoanConfig />
         </div>
       </Layout>
     );
@@ -29,15 +26,9 @@ export default function Home() {
 
   return (
     <Layout>
-      {!hasData ? (
-        <LoanConfig />
-      ) : (
-        <>
-          {activeTab === 'dashboard' && <Dashboard />}
-          {activeTab === 'config' && <LoanConfig />}
-          {activeTab === 'plan' && <RepaymentPlan />}
-        </>
-      )}
+      {activeTab === 'dashboard' && <Dashboard />}
+      {activeTab === 'config' && <LoanConfig />}
+      {activeTab === 'plan' && <RepaymentPlan />}
     </Layout>
   );
 }

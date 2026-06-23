@@ -30,13 +30,11 @@ export default function LoanConfig() {
     });
   };
 
-  // 当前剩余本金（用于表单提示）
   const currentRemaining = schedule.length > 0 ? getCurrentRemainingPrincipal(schedule) : 0;
 
   return (
-    <div className="space-y-5">
-      {/* 贷款基本信息 */}
-      <Section title="🏦 贷款基本信息" desc="录入贷款信息，自动生成还款计划并保存到本地数据库">
+    <div className="space-y-4">
+      <Section title="贷款信息">
         <form onSubmit={handleGenerate} className="space-y-4">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <Field label="贷款总额（元）">
@@ -51,7 +49,7 @@ export default function LoanConfig() {
               <input type="number" value={totalMonths} onChange={(e) => setTotalMonths(e.target.value)}
                 className="input" placeholder="240" required step="12" />
             </Field>
-            <Field label="贷款开始日期">
+            <Field label="开始日期">
               <input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)}
                 className="input" required />
             </Field>
@@ -79,22 +77,17 @@ export default function LoanConfig() {
         </form>
       </Section>
 
-      {/* 利率变更管理 */}
-      <Section title="📈 利率变更管理" desc="参考银行LPR浮动利率调整，变更后自动重算剩余期数月供">
-        <RateChangeForm
-          schedule={schedule}
-          currentRate={loanInfo?.annualRate || 0}
-          onAdd={addRateChange}
-        />
+      <Section title="利率变更">
+        <RateChangeForm schedule={schedule} currentRate={loanInfo?.annualRate || 0} onAdd={addRateChange} />
         {rateChanges.length > 0 && (
-          <div className="mt-4 overflow-x-auto">
+          <div className="mt-3 overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
                 <tr className="text-gray-400 text-xs border-b border-gray-100">
                   <th className="text-left py-2 pr-2">生效日期</th>
                   <th className="text-right py-2 px-2">原利率</th>
                   <th className="text-right py-2 px-2">新利率</th>
-                  <th className="text-right py-2 px-2">调整时剩余本金</th>
+                  <th className="text-right py-2 px-2">剩余本金</th>
                   <th className="text-right py-2 px-2">剩余期数</th>
                   <th className="text-center py-2 pl-2">操作</th>
                 </tr>
@@ -121,8 +114,7 @@ export default function LoanConfig() {
         )}
       </Section>
 
-      {/* 提前还款管理 */}
-      <Section title="💰 提前还款管理" desc="录入提前还款，选择缩短年限或缩短月供，自动重算还款计划">
+      <Section title="提前还款">
         {schedule.length > 0 && (
           <div className="mb-3 text-xs text-gray-500 bg-blue-50/50 rounded-lg px-3 py-2">
             当前剩余本金：<span className="font-medium text-blue-600">¥{formatMoney(currentRemaining)}</span>
@@ -130,15 +122,15 @@ export default function LoanConfig() {
         )}
         <PrepaymentForm schedule={schedule} onAdd={addPrepayment} />
         {prepayments.length > 0 && (
-          <div className="mt-4 overflow-x-auto">
+          <div className="mt-3 overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
                 <tr className="text-gray-400 text-xs border-b border-gray-100">
                   <th className="text-left py-2 pr-2">日期</th>
-                  <th className="text-right py-2 px-2">还款金额</th>
+                  <th className="text-right py-2 px-2">金额</th>
                   <th className="text-center py-2 px-2">方式</th>
-                  <th className="text-right py-2 px-2">还款前剩余</th>
-                  <th className="text-right py-2 px-2">还款后剩余</th>
+                  <th className="text-right py-2 px-2">还款前</th>
+                  <th className="text-right py-2 px-2">还款后</th>
                   <th className="text-center py-2 pl-2">操作</th>
                 </tr>
               </thead>
@@ -168,19 +160,17 @@ export default function LoanConfig() {
         )}
       </Section>
 
-      {/* 数据管理 */}
-      <Section title="🔧 数据管理" desc="导出备份、导入恢复、云同步或重置数据">
+      <Section title="数据管理">
         <DataManager />
       </Section>
     </div>
   );
 }
 
-function Section({ title, desc, children }: { title: string; desc?: string; children: React.ReactNode }) {
+function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
-    <div className="bg-white rounded-xl p-6 border border-gray-100 shadow-sm">
-      <h2 className="text-base font-bold text-gray-800 mb-1">{title}</h2>
-      {desc && <p className="text-xs text-gray-400 mb-4">{desc}</p>}
+    <div className="bg-white rounded-xl p-5 border border-gray-100 shadow-sm">
+      <h2 className="text-sm font-bold text-gray-800 mb-4">{title}</h2>
       {children}
     </div>
   );
@@ -210,14 +200,14 @@ function RateChangeForm({
     const rate = parseFloat(newRate);
     if (!date || !rate) return;
 
-    const changeDate = new Date(date);
+    const changeDate = new Date(date + 'T00:00:00');
     const lastBefore = schedule
-      .filter((s) => new Date(s.date) <= changeDate)
+      .filter((s) => new Date(s.date + 'T00:00:00') <= changeDate)
       .sort((a, b) => b.period - a.period)[0];
     const remainingPrincipal = lastBefore
       ? lastBefore.remainingPrincipal
       : (schedule[0]?.remainingPrincipal || 0) + (schedule[0]?.principal || 0);
-    const remainingMonths = schedule.filter((s) => new Date(s.date) > changeDate).length;
+    const remainingMonths = schedule.filter((s) => new Date(s.date + 'T00:00:00') > changeDate).length;
 
     onAdd({
       date,
@@ -243,7 +233,7 @@ function RateChangeForm({
       </Field>
       <button type="submit"
         className="py-2.5 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors">
-        添加利率变更
+        添加
       </button>
     </form>
   );
@@ -264,16 +254,16 @@ function PrepaymentForm({
     const amt = parseFloat(amount);
     if (!amt || !date) return;
 
-    const prepayDate = new Date(date);
+    const prepayDate = new Date(date + 'T00:00:00');
     const lastBefore = schedule
-      .filter((s) => new Date(s.date) <= prepayDate)
+      .filter((s) => new Date(s.date + 'T00:00:00') <= prepayDate)
       .sort((a, b) => b.period - a.period)[0];
     const beforeRemaining = lastBefore
       ? lastBefore.remainingPrincipal
       : (schedule[0]?.remainingPrincipal || 0) + (schedule[0]?.principal || 0);
     const afterRemaining = beforeRemaining - amt;
-    const remainingAfter = schedule.filter((s) => new Date(s.date) > prepayDate).length;
-    const currentMonthly = schedule.find((s) => new Date(s.date) >= prepayDate)?.monthlyPayment || 0;
+    const remainingAfter = schedule.filter((s) => new Date(s.date + 'T00:00:00') > prepayDate).length;
+    const currentMonthly = schedule.find((s) => new Date(s.date + 'T00:00:00') >= prepayDate)?.monthlyPayment || 0;
 
     onAdd({
       date,
@@ -294,7 +284,7 @@ function PrepaymentForm({
   return (
     <form onSubmit={handleSubmit} className="space-y-3">
       <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-        <Field label="提前还款金额（元）">
+        <Field label="还款金额（元）">
           <input type="number" value={amount} onChange={(e) => setAmount(e.target.value)}
             className="input" placeholder="100000" required step="10000" />
         </Field>
@@ -317,7 +307,7 @@ function PrepaymentForm({
       </div>
       <button type="submit"
         className="px-6 py-2.5 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors">
-        添加提前还款
+        添加
       </button>
     </form>
   );
