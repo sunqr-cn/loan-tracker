@@ -1,3 +1,4 @@
+import { useEffect } from 'react';
 import { useLoanStore } from '@/stores/loanStore';
 import LoanConfig from '@/components/LoanConfig';
 import Dashboard from '@/components/Dashboard';
@@ -5,7 +6,13 @@ import RepaymentPlan from '@/components/RepaymentPlan';
 import Layout from '@/components/Layout';
 
 export default function Home() {
-  const { hasData, activeTab } = useLoanStore();
+  const { hasData, activeTab, loadFromServer, applySyncFromUrl } = useLoanStore();
+
+  // 页面加载时：先处理 URL 同步链接，再从服务端加载数据
+  useEffect(() => {
+    applySyncFromUrl();
+    loadFromServer();
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   if (!hasData) {
     return (

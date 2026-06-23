@@ -1,5 +1,5 @@
 import { useLoanStore } from '@/stores/loanStore';
-import { formatMoney } from '@/utils/calculator';
+import { formatMoney, getCurrentRemainingPrincipal } from '@/utils/calculator';
 
 export default function Dashboard() {
   const { loanInfo, schedule, prepayments, rateChanges, setActiveTab } = useLoanStore();
@@ -9,9 +9,7 @@ export default function Dashboard() {
   const totalInterest = schedule.reduce((sum, s) => sum + s.interest, 0);
   const totalPayment = schedule.reduce((sum, s) => sum + s.monthlyPayment, 0);
   const paidCount = schedule.filter(s => s.paid).length;
-  const remainingPrincipal = schedule.length > 0
-    ? schedule[schedule.length - 1].remainingPrincipal
-    : 0;
+  const remainingPrincipal = getCurrentRemainingPrincipal(schedule);
   const currentMonthly = schedule.find(s => !s.paid)?.monthlyPayment || 0;
   const progress = schedule.length > 0 ? (paidCount / schedule.length) * 100 : 0;
 
