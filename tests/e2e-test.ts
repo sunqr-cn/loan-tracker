@@ -4,6 +4,7 @@ import path from 'path';
 
 const SCREENSHOT_DIR = './test-screenshots';
 const BASE_URL = process.env.BASE_URL || 'http://localhost:5173';
+const API_URL = process.env.API_URL || 'http://localhost:8787';
 
 async function runTests() {
   if (!fs.existsSync(SCREENSHOT_DIR)) {
@@ -42,6 +43,24 @@ async function runTests() {
 
     await page.screenshot({ path: path.join(SCREENSHOT_DIR, '01-initial-load.png'), fullPage: true });
     console.log('  ✅ 截图: 01-initial-load.png');
+
+    // ========== 配置服务端地址（新架构：数据存服务端） ==========
+    console.log('\n📋 配置服务端地址...');
+    await page.evaluate((apiUrl) => {
+      localStorage.setItem('server_api_url', apiUrl);
+      localStorage.setItem('server_write_key', '');
+    }, API_URL);
+    // 清空服务端数据，确保从空状态开始测试
+    await page.evaluate(async (apiUrl) => {
+      await fetch(`${apiUrl}/api/data`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ loanInfo: null, schedule: [], prepayments: [], rateChanges: [], meta: { createdAt: '', updatedAt: '' } }),
+      });
+    }, API_URL);
+    await page.reload({ waitUntil: 'networkidle' });
+    await page.waitForTimeout(1500);
+    results.push({ name: '服务端地址已配置', passed: true });
 
     // ========== 测试 2: 白色背景 ==========
     console.log('\n📋 测试 2: 白色背景主题...');
@@ -102,15 +121,15 @@ async function runTests() {
     const remainingHint = await page.getByText('当前剩余本金').isVisible();
     results.push({ name: '当前剩余本金提示显示', passed: remainingHint });
 
-    // 检查云同步功能
+    // 检查服务端存储功能
     const pageContent2 = await page.content();
-    const cloudSyncBtn = pageContent2.includes('仓库云同步');
-    results.push({ name: '云同步功能存在', passed: cloudSyncBtn });
+    const cloudSyncBtn = pageContent2.includes('服务端存储');
+    results.push({ name: '服务端存储功能存在', passed: cloudSyncBtn });
 
-    // 检查 SQLite 存储提示
+    // 检查 Cloudflare D1 存储提示
     const pageContent = await page.content();
-    const indexedDBHint = pageContent.includes('SQLite');
-    results.push({ name: 'SQLite 存储提示显示', passed: indexedDBHint });
+    const indexedDBHint = pageContent.includes('Cloudflare');
+    results.push({ name: 'Cloudflare D1 存储提示显示', passed: indexedDBHint });
 
     await page.screenshot({ path: path.join(SCREENSHOT_DIR, '04-config.png'), fullPage: true });
     console.log('  ✅ 截图: 04-config.png');
@@ -244,12 +263,12 @@ async function runTests() {
     console.log('  ✅ 截图: 11-mobile.png');
     results.push({ name: '移动端布局适配', passed: true });
 
-    // ========== 测试 16: 数据持久化（SQLite） ==========
+    // ========== 测试 16: 数据持久化（服务端存储） ==========
     console.log('\n📋 测试 16: 数据持久化测试...');
     await page.setViewportSize({ width: 1280, height: 900 });
-    // 刷新页面，数据应该还在
+    // 刷新页面，数据应从服务端重新加载
     await page.reload({ waitUntil: 'networkidle' });
-    // 等待 sql.js WASM 加载完成（可能需要几秒）
+    // 等待服务端数据加载完成（可能需要几秒）
     let dataLoaded = false;
     for (let i = 0; i < 10; i++) {
       await page.waitForTimeout(1000);

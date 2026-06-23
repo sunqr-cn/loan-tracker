@@ -35,7 +35,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
               </div>
               <div>
                 <h1 className="text-base font-bold text-gray-800 leading-tight">公积金贷款管理</h1>
-                <p className="text-[10px] text-gray-400 leading-tight">SQLite · 云同步</p>
+                <p className="text-[10px] text-gray-400 leading-tight">服务端存储 · 自动同步</p>
               </div>
             </div>
 
@@ -67,15 +67,15 @@ export default function Layout({ children }: { children: React.ReactNode }) {
                     <div className="w-2 h-2 rounded-full bg-amber-400 animate-pulse" />
                     <span className="text-gray-400">同步中...</span>
                   </>
-                ) : syncStatus.autoSync ? (
+                ) : syncStatus.online ? (
                   <>
                     <div className="w-2 h-2 rounded-full bg-green-500" />
-                    <span className="text-gray-400">{syncText || '已开启自动同步'}</span>
+                    <span className="text-gray-400">{syncText || '已连接服务端'}</span>
                   </>
                 ) : (
                   <>
-                    <div className="w-2 h-2 rounded-full bg-gray-300" />
-                    <span className="text-gray-400">手动同步</span>
+                    <div className="w-2 h-2 rounded-full bg-red-400" />
+                    <span className="text-gray-400">离线</span>
                   </>
                 )}
               </div>
@@ -94,15 +94,15 @@ export default function Layout({ children }: { children: React.ReactNode }) {
         <div className="flex items-center justify-center gap-2">
           <span className="inline-flex items-center gap-1">
             <span className="w-1.5 h-1.5 rounded-full bg-blue-500" />
-            SQLite 本地数据库
+            Cloudflare D1 服务端存储
           </span>
           <span className="text-gray-300">·</span>
           <span className="inline-flex items-center gap-1">
             <span className="w-1.5 h-1.5 rounded-full bg-green-500" />
-            GitHub Gist 云同步
+            后台 cron 自动重算
           </span>
         </div>
-        <p className="mt-1.5 text-[11px]">配置云同步后，换浏览器数据不丢失</p>
+        <p className="mt-1.5 text-[11px]">数据存服务端，所有设备共享，换浏览器不丢失</p>
       </footer>
     </div>
   );

@@ -1,0 +1,8 @@
+name = "loan-tracker-api"
+compatibility_date = "2024-11-01"
+pages_build_output_dir = "public"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "loan-tracker-db"
+database_id = "7b9d20cc-f3a7-4532-9a60-6b0b67527dcf"
