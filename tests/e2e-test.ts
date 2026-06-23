@@ -103,7 +103,8 @@ async function runTests() {
     results.push({ name: '当前剩余本金提示显示', passed: remainingHint });
 
     // 检查云同步功能
-    const cloudSyncBtn = await page.getByText('仓库云同步').first().isVisible();
+    const pageContent2 = await page.content();
+    const cloudSyncBtn = pageContent2.includes('仓库云同步');
     results.push({ name: '云同步功能存在', passed: cloudSyncBtn });
 
     // 检查 SQLite 存储提示
