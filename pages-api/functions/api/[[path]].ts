@@ -168,6 +168,12 @@ async function handlePostData(request: Request, env: Env): Promise<Response> {
     return errorResponse('请求体不是合法的 JSON', 400);
   }
 
+  // 支持清空数据：loanInfo 和 schedule 同时为 null
+  if (body && typeof body === 'object' && body.loanInfo === null && body.schedule === null) {
+    await env.DB.prepare('DELETE FROM loan_data WHERE id = 1').run();
+    return jsonResponse({ success: true, updatedAt: nowISO() });
+  }
+
   if (!body || typeof body !== 'object' || !body.loanInfo || !Array.isArray(body.schedule)) {
     return errorResponse('数据结构不合法：缺少 loanInfo 或 schedule', 400);
   }

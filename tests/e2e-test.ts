@@ -55,7 +55,7 @@ async function runTests() {
       await fetch(`${apiUrl}/api/data`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ loanInfo: null, schedule: [], prepayments: [], rateChanges: [], meta: { createdAt: '', updatedAt: '' } }),
+        body: JSON.stringify({ loanInfo: null, schedule: null }),
       });
     }, API_URL);
     await page.reload({ waitUntil: 'networkidle' });
