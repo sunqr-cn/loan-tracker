@@ -194,11 +194,24 @@ function RateChangeForm({
 }) {
   const [date, setDate] = useState('');
   const [newRate, setNewRate] = useState('');
+  const [error, setError] = useState('');
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    setError('');
+    if (!date) {
+      setError('请选择生效日期');
+      return;
+    }
     const rate = parseFloat(newRate);
-    if (!date || !rate) return;
+    if (!rate || isNaN(rate)) {
+      setError('请输入有效的新利率');
+      return;
+    }
+    if (rate <= 0 || rate > 20) {
+      setError('利率应在 0~20% 之间');
+      return;
+    }
 
     const changeDate = new Date(date + 'T00:00:00');
     const lastBefore = schedule
@@ -222,19 +235,24 @@ function RateChangeForm({
   };
 
   return (
-    <form onSubmit={handleSubmit} className="grid grid-cols-1 md:grid-cols-3 gap-3 items-end">
-      <Field label="生效日期">
-        <input type="date" value={date} onChange={(e) => setDate(e.target.value)}
-          className="input" required />
-      </Field>
-      <Field label="新利率（%）">
-        <input type="number" value={newRate} onChange={(e) => setNewRate(e.target.value)}
-          className="input" placeholder="3.05" required step="0.01" />
-      </Field>
-      <button type="submit"
-        className="py-2.5 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors">
-        添加
-      </button>
+    <form onSubmit={handleSubmit} className="space-y-3">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-3 items-end">
+        <Field label="生效日期">
+          <input type="date" value={date} onChange={(e) => setDate(e.target.value)}
+            className="input" required />
+        </Field>
+        <Field label="新利率（%）">
+          <input type="number" value={newRate} onChange={(e) => setNewRate(e.target.value)}
+            className="input" placeholder="3.05" required step="0.01" />
+        </Field>
+        <button type="submit"
+          className="py-2.5 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors">
+          添加
+        </button>
+      </div>
+      {error && (
+        <div className="text-xs text-red-500 bg-red-50 rounded-lg px-3 py-2">{error}</div>
+      )}
     </form>
   );
 }
@@ -248,11 +266,20 @@ function PrepaymentForm({
   const [amount, setAmount] = useState('');
   const [date, setDate] = useState('');
   const [mode, setMode] = useState<'shortenTerm' | 'reduceMonthly'>('shortenTerm');
+  const [error, setError] = useState('');
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    setError('');
+    if (!date) {
+      setError('请选择还款日期');
+      return;
+    }
     const amt = parseFloat(amount);
-    if (!amt || !date) return;
+    if (!amt || isNaN(amt) || amt <= 0) {
+      setError('请输入有效的还款金额');
+      return;
+    }
 
     const prepayDate = new Date(date + 'T00:00:00');
     const lastBefore = schedule
@@ -305,6 +332,9 @@ function PrepaymentForm({
           </div>
         </Field>
       </div>
+      {error && (
+        <div className="text-xs text-red-500 bg-red-50 rounded-lg px-3 py-2">{error}</div>
+      )}
       <button type="submit"
         className="px-6 py-2.5 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors">
         添加
