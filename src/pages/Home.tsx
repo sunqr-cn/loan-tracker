@@ -6,13 +6,27 @@ import RepaymentPlan from '@/components/RepaymentPlan';
 import Layout from '@/components/Layout';
 
 export default function Home() {
-  const { hasData, activeTab, loadFromServer, applySyncFromUrl } = useLoanStore();
+  const { hasData, isLoading, activeTab, loadFromServer, applySyncFromUrl } = useLoanStore();
 
   // 页面加载时：先处理 URL 同步链接，再从服务端加载数据
   useEffect(() => {
     applySyncFromUrl();
     loadFromServer();
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // 加载中显示空白，避免闪烁到设置页
+  if (isLoading) {
+    return (
+      <Layout>
+        <div className="flex items-center justify-center min-h-[50vh]">
+          <div className="text-center">
+            <div className="w-12 h-12 rounded-full border-4 border-blue-200 border-t-blue-600 animate-spin mx-auto mb-3" />
+            <p className="text-sm text-gray-400">加载中...</p>
+          </div>
+        </div>
+      </Layout>
+    );
+  }
 
   if (!hasData) {
     return (

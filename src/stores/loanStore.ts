@@ -62,13 +62,49 @@ function preservePaidStatus(oldSchedule: ScheduleItem[], newSchedule: ScheduleIt
   });
 }
 
+// 从 localStorage 同步加载数据（避免首帧闪烁到设置页）
+function loadFromLocalStorage(): Partial<LoanStore> {
+  try {
+    const saved = localStorage.getItem('loan_data');
+    if (saved) {
+      const data = JSON.parse(saved);
+      if (data.loanInfo && data.schedule) {
+        return {
+          loanInfo: data.loanInfo,
+          schedule: data.schedule,
+          prepayments: data.prepayments || [],
+          rateChanges: data.rateChanges || [],
+          hasData: true,
+          isLoading: false,
+        };
+      }
+    }
+  } catch { /* ignore */ }
+  return {};
+}
+
+const initialData = loadFromLocalStorage();
+
+// 保存到 localStorage
+function saveToLocalStorage(state: LoanStore) {
+  try {
+    const data = {
+      loanInfo: state.loanInfo,
+      schedule: state.schedule,
+      prepayments: state.prepayments,
+      rateChanges: state.rateChanges,
+    };
+    localStorage.setItem('loan_data', JSON.stringify(data));
+  } catch { /* ignore */ }
+}
+
 export const useLoanStore = create<LoanStore>((set, get) => ({
-  loanInfo: null,
-  schedule: [],
-  prepayments: [],
-  rateChanges: [],
-  hasData: false,
-  isLoading: true,
+  loanInfo: initialData.loanInfo ?? null,
+  schedule: initialData.schedule ?? [],
+  prepayments: initialData.prepayments ?? [],
+  rateChanges: initialData.rateChanges ?? [],
+  hasData: initialData.hasData ?? false,
+  isLoading: initialData.isLoading ?? true,
   activeTab: 'dashboard',
   syncStatus: {
     configured: isServerConfigured(),
@@ -86,6 +122,7 @@ export const useLoanStore = create<LoanStore>((set, get) => ({
     const rateChanges = get().rateChanges;
     const schedule = generateSchedule(info, prepayments, rateChanges);
     set({ loanInfo: info, schedule, hasData: true });
+    saveToLocalStorage(get());
     get().saveToServerStore();
   },
 
@@ -94,6 +131,7 @@ export const useLoanStore = create<LoanStore>((set, get) => ({
       item.period === period ? { ...item, paid: !item.paid } : item
     );
     set({ schedule });
+    saveToLocalStorage(get());
     get().saveToServerStore();
   },
 
@@ -106,6 +144,7 @@ export const useLoanStore = create<LoanStore>((set, get) => ({
     const newSchedule = recalcAll(loanInfo, prepayments, get().rateChanges);
     const schedule = preservePaidStatus(get().schedule, newSchedule);
     set({ prepayments, schedule });
+    saveToLocalStorage(get());
     get().saveToServerStore();
   },
 
@@ -116,6 +155,7 @@ export const useLoanStore = create<LoanStore>((set, get) => ({
     const newSchedule = recalcAll(loanInfo, prepayments, get().rateChanges);
     const schedule = preservePaidStatus(get().schedule, newSchedule);
     set({ prepayments, schedule });
+    saveToLocalStorage(get());
     get().saveToServerStore();
   },
 
@@ -126,6 +166,7 @@ export const useLoanStore = create<LoanStore>((set, get) => ({
     const newSchedule = recalcAll(loanInfo, prepayments, get().rateChanges);
     const schedule = preservePaidStatus(get().schedule, newSchedule);
     set({ prepayments, schedule });
+    saveToLocalStorage(get());
     get().saveToServerStore();
   },
 
@@ -138,6 +179,7 @@ export const useLoanStore = create<LoanStore>((set, get) => ({
     const newSchedule = recalcAll(loanInfo, get().prepayments, rateChanges);
     const schedule = preservePaidStatus(get().schedule, newSchedule);
     set({ rateChanges, schedule });
+    saveToLocalStorage(get());
     get().saveToServerStore();
   },
 
@@ -148,6 +190,7 @@ export const useLoanStore = create<LoanStore>((set, get) => ({
     const newSchedule = recalcAll(loanInfo, get().prepayments, rateChanges);
     const schedule = preservePaidStatus(get().schedule, newSchedule);
     set({ rateChanges, schedule });
+    saveToLocalStorage(get());
     get().saveToServerStore();
   },
 
@@ -158,6 +201,7 @@ export const useLoanStore = create<LoanStore>((set, get) => ({
     const newSchedule = recalcAll(loanInfo, get().prepayments, rateChanges);
     const schedule = preservePaidStatus(get().schedule, newSchedule);
     set({ rateChanges, schedule });
+    saveToLocalStorage(get());
     get().saveToServerStore();
   },
 
@@ -190,6 +234,7 @@ export const useLoanStore = create<LoanStore>((set, get) => ({
         rateChanges: data.rateChanges || [],
         hasData: true,
       });
+      saveToLocalStorage(get());
       get().saveToServerStore();
       return true;
     } catch {
@@ -205,6 +250,7 @@ export const useLoanStore = create<LoanStore>((set, get) => ({
       rateChanges: [],
       hasData: false,
     });
+    saveToLocalStorage(get());
     // 清空服务端数据
     if (isServerConfigured()) {
       clearServerData();
