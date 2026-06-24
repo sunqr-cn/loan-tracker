@@ -8,21 +8,28 @@ export default function Dashboard() {
 
   if (!loanInfo) return null;
 
+  // 从已还期数直接求和（不依赖 schedule 总本金，因为提前还款后 schedule 会重算）
+  const paidItems = schedule.filter(s => s.paid);
+  const paidPrincipal = paidItems.reduce((sum, s) => sum + s.principal, 0);
+  const paidInterest = paidItems.reduce((sum, s) => sum + s.interest, 0);
+  const paidTotal = paidPrincipal + paidInterest;
+
+  // 全 schedule 的本金利息总和（用于构成图）
   const totalPrincipal = schedule.reduce((sum, s) => sum + s.principal, 0);
   const totalInterest = schedule.reduce((sum, s) => sum + s.interest, 0);
   const totalPayment = schedule.reduce((sum, s) => sum + s.monthlyPayment, 0);
-  const paidCount = schedule.filter(s => s.paid).length;
+  const paidCount = paidItems.length;
   const remainingPrincipal = getCurrentRemainingPrincipal(schedule);
-  const paidPrincipal = totalPrincipal - remainingPrincipal;
-  const paidInterest = schedule.filter(s => s.paid).reduce((sum, s) => sum + s.interest, 0);
   const remainingPeriods = schedule.length - paidCount;
   const progress = schedule.length > 0 ? (paidCount / schedule.length) * 100 : 0;
 
   const currentPeriod = schedule.find(s => !s.paid);
   const nextPeriod = schedule.filter(s => !s.paid)[1];
 
-  const principalRatio = totalPayment > 0 ? (totalPrincipal / totalPayment) * 100 : 0;
-  const interestRatio = totalPayment > 0 ? (totalInterest / totalPayment) * 100 : 0;
+  // 构成比例（基于贷款总额，不是 schedule 本金和，因为提前还款会减少 schedule 本金）
+  const totalPaymentActual = loanInfo.totalAmount + totalInterest;
+  const principalRatio = totalPaymentActual > 0 ? (loanInfo.totalAmount / totalPaymentActual) * 100 : 0;
+  const interestRatio = totalPaymentActual > 0 ? (totalInterest / totalPaymentActual) * 100 : 0;
 
   return (
     <div className="space-y-4">
