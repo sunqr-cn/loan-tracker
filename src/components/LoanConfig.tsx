@@ -235,15 +235,15 @@ function RateChangeForm({
   };
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-3">
+    <form onSubmit={handleSubmit} noValidate className="space-y-3">
       <div className="grid grid-cols-1 md:grid-cols-3 gap-3 items-end">
         <Field label="生效日期">
           <input type="date" value={date} onChange={(e) => setDate(e.target.value)}
-            className="input" required />
+            className="input" />
         </Field>
         <Field label="新利率（%）">
           <input type="number" value={newRate} onChange={(e) => setNewRate(e.target.value)}
-            className="input" placeholder="3.05" required step="0.01" />
+            className="input" placeholder="3.05" step="0.01" />
         </Field>
         <button type="submit"
           className="py-2.5 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors">
@@ -309,15 +309,15 @@ function PrepaymentForm({
   };
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-3">
+    <form onSubmit={handleSubmit} noValidate className="space-y-3">
       <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
         <Field label="还款金额（元）">
           <input type="number" value={amount} onChange={(e) => setAmount(e.target.value)}
-            className="input" placeholder="100000" required step="10000" />
+            className="input" placeholder="100000" step="10000" />
         </Field>
         <Field label="还款日期">
           <input type="date" value={date} onChange={(e) => setDate(e.target.value)}
-            className="input" required />
+            className="input" />
         </Field>
         <Field label="重算方式">
           <div className="flex gap-1.5">
