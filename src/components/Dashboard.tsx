@@ -240,6 +240,116 @@ export default function Dashboard() {
         </div>
       )}
 
+      {/* 图表区域 */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        {/* 剩余本金趋势图 */}
+        <div className="bg-white rounded-2xl p-4 border border-gray-100 shadow-sm">
+          <div className="flex items-center gap-2 mb-3">
+            <div className="w-8 h-8 rounded-lg bg-purple-50 flex items-center justify-center">
+              <TrendingUp className="w-4 h-4 text-purple-600" />
+            </div>
+            <h3 className="text-sm font-bold text-gray-800">剩余本金趋势</h3>
+          </div>
+          <div className="h-40">
+            <svg viewBox="0 0 400 160" className="w-full h-full">
+              {/* 网格线 */}
+              <line x1="0" y1="40" x2="400" y2="40" stroke="#f3f4f6" strokeWidth="1" />
+              <line x1="0" y1="80" x2="400" y2="80" stroke="#f3f4f6" strokeWidth="1" />
+              <line x1="0" y1="120" x2="400" y2="120" stroke="#f3f4f6" strokeWidth="1" />
+              
+              {/* 曲线 */}
+              <path
+                d={`M 0 0 ${schedule.slice(0, 20).map((s, i) => {
+                  const x = (i / 19) * 400;
+                  const y = 160 - (s.remainingPrincipal / loanInfo.totalAmount) * 160;
+                  return `L ${x} ${y}`;
+                }).join(' ')}`}
+                fill="none"
+                stroke="url(#gradient-purple)"
+                strokeWidth="2"
+              />
+              
+              {/* 渐变填充 */}
+              <path
+                d={`M 0 0 ${schedule.slice(0, 20).map((s, i) => {
+                  const x = (i / 19) * 400;
+                  const y = 160 - (s.remainingPrincipal / loanInfo.totalAmount) * 160;
+                  return `L ${x} ${y}`;
+                }).join(' ')} L 400 160 L 0 160 Z`}
+                fill="url(#gradient-purple-fill)"
+                opacity="0.2"
+              />
+              
+              <defs>
+                <linearGradient id="gradient-purple" x1="0%" y1="0%" x2="100%" y2="0%">
+                  <stop offset="0%" stopColor="#8b5cf6" />
+                  <stop offset="100%" stopColor="#6366f1" />
+                </linearGradient>
+                <linearGradient id="gradient-purple-fill" x1="0%" y1="0%" x2="0%" y2="100%">
+                  <stop offset="0%" stopColor="#8b5cf6" />
+                  <stop offset="100%" stopColor="#8b5cf6" stopOpacity="0" />
+                </linearGradient>
+              </defs>
+            </svg>
+          </div>
+          <div className="flex justify-between text-xs text-gray-400 mt-2">
+            <span>第1期</span>
+            <span>第20期</span>
+          </div>
+        </div>
+
+        {/* 本金利息构成图 */}
+        <div className="bg-white rounded-2xl p-4 border border-gray-100 shadow-sm">
+          <div className="flex items-center gap-2 mb-3">
+            <div className="w-8 h-8 rounded-lg bg-orange-50 flex items-center justify-center">
+              <PiggyBank className="w-4 h-4 text-orange-600" />
+            </div>
+            <h3 className="text-sm font-bold text-gray-800">本金利息构成</h3>
+          </div>
+          <div className="h-40 flex items-center justify-center">
+            <svg viewBox="0 0 200 200" className="w-32 h-32">
+              {/* 饼图 */}
+              <circle
+                cx="100" cy="100" r="80"
+                fill="none"
+                stroke="#f3f4f6"
+                strokeWidth="40"
+              />
+              <circle
+                cx="100" cy="100" r="80"
+                fill="none"
+                stroke="url(#gradient-blue)"
+                strokeWidth="40"
+                strokeDasharray={`${(totalPrincipal / totalPayment) * 502.65} 502.65`}
+                transform="rotate(-90 100 100)"
+              />
+              <text x="100" y="95" textAnchor="middle" className="text-2xl font-bold fill-gray-800">
+                {((totalPrincipal / totalPayment) * 100).toFixed(0)}%
+              </text>
+              <text x="100" y="115" textAnchor="middle" className="text-xs fill-gray-400">
+                本金占比
+              </text>
+              <defs>
+                <linearGradient id="gradient-blue" x1="0%" y1="0%" x2="100%" y2="100%">
+                  <stop offset="0%" stopColor="#3b82f6" />
+                  <stop offset="100%" stopColor="#2563eb" />
+                </linearGradient>
+              </defs>
+            </svg>
+          </div>
+          <div className="flex justify-around mt-3 text-xs">
+            <div className="text-center">
+              <div className="font-bold text-blue-600">¥{formatMoney(totalPrincipal)}</div>
+              <div className="text-gray-400">本金</div>
+            </div>
+            <div className="text-center">
+              <div className="font-bold text-orange-600">¥{formatMoney(totalInterest)}</div>
+              <div className="text-gray-400">利息</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
       {/* 汇总信息 */}
       <div className="bg-gray-50 rounded-2xl p-4">
         <div className="grid grid-cols-2 gap-4 text-center">

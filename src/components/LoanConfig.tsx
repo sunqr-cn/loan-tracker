@@ -3,12 +3,13 @@ import type { LoanInfo, PrepaymentRecord, RateChangeRecord } from '@/types/loan'
 import { useLoanStore } from '@/stores/loanStore';
 import { formatMoney, getCurrentRemainingPrincipal } from '@/utils/calculator';
 import DataManager from './DataManager';
+import { ArrowLeft } from 'lucide-react';
 
 export default function LoanConfig() {
   const {
     loanInfo, schedule, prepayments, rateChanges,
     generatePlan, addPrepayment, deletePrepayment,
-    addRateChange, deleteRateChange,
+    addRateChange, deleteRateChange, setActiveTab,
   } = useLoanStore();
 
   const [totalAmount, setTotalAmount] = useState(loanInfo?.totalAmount?.toString() || '500000');
@@ -34,6 +35,15 @@ export default function LoanConfig() {
 
   return (
     <div className="space-y-4">
+      {/* 返回按钮 */}
+      <button
+        onClick={() => setActiveTab('dashboard')}
+        className="flex items-center gap-1.5 text-sm text-gray-500 hover:text-gray-700 transition-colors"
+      >
+        <ArrowLeft className="w-4 h-4" />
+        返回首页
+      </button>
+
       <Section title="贷款信息">
         <form onSubmit={handleGenerate} className="space-y-4">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
