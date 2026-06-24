@@ -69,7 +69,7 @@ export function generateSchedule(
   rateChanges: RateChangeRecord[] = []
 ): ScheduleItem[] {
   const schedule: ScheduleItem[] = [];
-  const startDate = new Date(loanInfo.startDate);
+  const startDate = parseDateLocal(loanInfo.startDate);
   const todayStr = getTodayStr();
 
   let remainingPrincipal = loanInfo.totalAmount;

@@ -127,6 +127,15 @@ async function runTests() {
 
     // ========== 测试 7: 添加利率变更 ==========
     console.log('\n📋 测试 7: 添加利率变更...');
+    // 记录变更前的当前月供
+    await page.locator('nav').getByRole('button', { name: /首页/ }).click();
+    await page.waitForTimeout(800);
+    const monthlyBefore = await page.locator('.grid.grid-cols-2 > div').filter({ hasText: '当前月供' }).textContent();
+
+    // 返回配置页添加利率变更
+    await page.locator('nav').getByRole('button', { name: /配置/ }).click();
+    await page.waitForTimeout(500);
+
     // 利率变更表单：日期 + 新利率 + 添加按钮
     const rateDateInput = page.locator('input[type="date"]').nth(1);
     await rateDateInput.fill('2025-01-01');
@@ -141,11 +150,25 @@ async function runTests() {
     const rateChangeRows = await page.locator('text=3.05%').count();
     results.push({ name: '利率变更记录添加', passed: rateChangeRows > 0, error: rateChangeRows === 0 ? '未找到利率变更记录' : undefined });
 
+    // 验证利率变更后月供确实变化
+    await page.locator('nav').getByRole('button', { name: /首页/ }).click();
+    await page.waitForTimeout(800);
+    const monthlyAfter = await page.locator('.grid.grid-cols-2 > div').filter({ hasText: '当前月供' }).textContent();
+    const rateChanged = monthlyAfter !== monthlyBefore;
+    results.push({ name: '利率变更影响月供', passed: rateChanged, error: rateChanged ? undefined : `变更前后月供相同: ${monthlyBefore}` });
+
     await page.screenshot({ path: path.join(SCREENSHOT_DIR, '05-rate-change.png'), fullPage: true });
     console.log('  ✅ 截图: 05-rate-change.png');
 
     // ========== 测试 8: 添加提前还款 ==========
     console.log('\n📋 测试 8: 添加提前还款...');
+    // 记录提前还款前的剩余本金和总期数
+    const remainingBefore = await page.locator('.grid.grid-cols-2 > div').filter({ hasText: '剩余本金' }).textContent();
+    const periodsBefore = await page.locator('.grid.grid-cols-2 > div').filter({ hasText: '已还期数' }).textContent();
+
+    await page.locator('nav').getByRole('button', { name: /配置/ }).click();
+    await page.waitForTimeout(500);
+
     const prepayAmountInput = page.locator('input[placeholder="100000"]');
     await prepayAmountInput.fill('100000');
 
@@ -162,6 +185,16 @@ async function runTests() {
 
     const prepayRows = await page.locator('text=¥100,000.00').count();
     results.push({ name: '提前还款记录添加', passed: prepayRows > 0, error: prepayRows === 0 ? '未找到提前还款记录' : undefined });
+
+    // 验证提前还款后数据变化
+    await page.locator('nav').getByRole('button', { name: /首页/ }).click();
+    await page.waitForTimeout(800);
+    const remainingAfter = await page.locator('.grid.grid-cols-2 > div').filter({ hasText: '剩余本金' }).textContent();
+    const periodsAfter = await page.locator('.grid.grid-cols-2 > div').filter({ hasText: '已还期数' }).textContent();
+    const remainingReduced = remainingAfter !== remainingBefore;
+    const periodsChanged = periodsAfter !== periodsBefore;
+    results.push({ name: '提前还款减少剩余本金', passed: remainingReduced, error: remainingReduced ? undefined : `变更前后剩余本金相同: ${remainingBefore}` });
+    results.push({ name: '提前还款改变还款期数', passed: periodsChanged, error: periodsChanged ? undefined : `变更前后期数相同: ${periodsBefore}` });
 
     await page.screenshot({ path: path.join(SCREENSHOT_DIR, '06-prepayment.png'), fullPage: true });
     console.log('  ✅ 截图: 06-prepayment.png');
@@ -241,10 +274,10 @@ async function runTests() {
     results.push({ name: '贷款总额显示正确', passed: !!hasCorrectAmount, error: !hasCorrectAmount ? '贷款总额不正确' : undefined });
 
     // 检查利率变更和提前还款卡片
-    const rateChangeCard = await page.getByText('利率变更').isVisible();
+    const rateChangeCard = await page.getByRole('button', { name: /利率变更/ }).isVisible();
     results.push({ name: '利率变更卡片显示', passed: rateChangeCard });
 
-    const prepayCard = await page.getByText('提前还款').isVisible();
+    const prepayCard = await page.getByRole('button', { name: /提前还款/ }).isVisible();
     results.push({ name: '提前还款卡片显示', passed: prepayCard });
 
     await page.screenshot({ path: path.join(SCREENSHOT_DIR, '10-dashboard-verify.png'), fullPage: true });

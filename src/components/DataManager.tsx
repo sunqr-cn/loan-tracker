@@ -50,7 +50,7 @@ export default function DataManager() {
 
   const handleSetup = async () => {
     const result = await testConnection(apiUrl);
-    if (result.success) {
+    if (result.ok) {
       saveServerConfig(apiUrl, writeKey);
       setMessage({ type: 'success', text: '连接成功，已保存配置' });
     } else {

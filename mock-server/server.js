@@ -123,6 +123,14 @@ const server = http.createServer(async (req, res) => {
         sendJSON(res, 400, { success: false, error: '无效的 JSON' });
         return;
       }
+      // 支持清空数据：loanInfo 和 schedule 同时为 null
+      if (data && typeof data === 'object' && data.loanInfo === null && data.schedule === null) {
+        store.data = null;
+        store.updatedAt = new Date().toISOString();
+        saveStore();
+        sendJSON(res, 200, { success: true, updatedAt: store.updatedAt });
+        return;
+      }
       // 保存数据并更新时间戳
       store.data = data;
       store.updatedAt = new Date().toISOString();
