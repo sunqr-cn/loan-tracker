@@ -3,6 +3,7 @@ import type { LoanInfo, PrepaymentRecord, RateChangeRecord } from '@/types/loan'
 import { useLoanStore } from '@/stores/loanStore';
 import { formatMoney, getCurrentRemainingPrincipal } from '@/utils/calculator';
 import DataManager from './DataManager';
+import { ArrowLeft } from 'lucide-react';
 
 export default function LoanConfig() {
   const {
@@ -34,6 +35,14 @@ export default function LoanConfig() {
 
   return (
     <div className="space-y-4">
+      <button
+        onClick={() => setActiveTab('dashboard')}
+        className="flex items-center gap-2 text-gray-600 hover:text-gray-900 transition-colors"
+      >
+        <ArrowLeft className="w-4 h-4" />
+        <span>返回首页</span>
+      </button>
+
       <Section title="贷款信息">
         <form onSubmit={handleGenerate} className="space-y-4">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
