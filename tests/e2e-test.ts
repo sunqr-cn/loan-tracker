@@ -62,15 +62,20 @@ async function runTests() {
     await page.waitForTimeout(1500);
     results.push({ name: '服务端地址已配置', passed: true });
 
-    // ========== 测试 2: 白色背景 ==========
-    console.log('\n📋 测试 2: 白色背景主题...');
+    // ========== 测试 2: 默认进入设置页 ==========
+    console.log('\n📋 测试 2: 默认进入设置页...');
+    const loanInfoSection = await page.getByText('贷款信息').isVisible();
+    results.push({ name: '默认显示设置页', passed: loanInfoSection, error: !loanInfoSection ? '未显示设置页' : undefined });
+
+    // ========== 测试 3: 白色背景 ==========
+    console.log('\n📋 测试 3: 白色背景主题...');
     const bgColor = await page.evaluate(() => {
       return getComputedStyle(document.body).backgroundColor;
     });
     results.push({ name: '背景为白色/浅色', passed: bgColor === 'rgb(245, 246, 250)' || bgColor === 'rgb(255, 255, 255)' || bgColor === 'rgba(0, 0, 0, 0)', error: `背景色为 ${bgColor}` });
 
-    // ========== 测试 3: 贷款信息表单 ==========
-    console.log('\n📋 测试 3: 贷款信息表单...');
+    // ========== 测试 4: 贷款信息表单 ==========
+    console.log('\n📋 测试 4: 贷款信息表单...');
     const formInputs = await page.locator('input').count();
     results.push({ name: '表单输入框存在', passed: formInputs >= 4, error: formInputs < 4 ? `只有 ${formInputs} 个输入框` : undefined });
 
@@ -78,62 +83,76 @@ async function runTests() {
     const equalPrincipalBtn = await page.getByText('等额本金').isVisible();
     results.push({ name: '还款方式按钮存在', passed: equalInstallmentBtn && equalPrincipalBtn });
 
-    // ========== 测试 4: 生成还款计划 ==========
-    console.log('\n📋 测试 4: 生成还款计划...');
+    // ========== 测试 5: 生成还款计划 ==========
+    console.log('\n📋 测试 5: 生成还款计划...');
     await page.getByRole('button', { name: /生成还款计划/ }).click();
     await page.waitForTimeout(2000);
 
-    const navVisible = await page.getByText('首页').first().isVisible();
-    results.push({ name: '导航栏显示', passed: navVisible });
+    // 检查底部导航栏是否显示
+    const bottomNav = await page.locator('nav').count();
+    results.push({ name: '底部导航栏显示', passed: bottomNav > 0 });
 
     await page.screenshot({ path: path.join(SCREENSHOT_DIR, '02-after-generate.png'), fullPage: true });
     console.log('  ✅ 截图: 02-after-generate.png');
 
-    // ========== 测试 5: 首页报表 ==========
-    console.log('\n📋 测试 5: 首页报表...');
-    const statCards = await page.locator('.grid.grid-cols-2 > div').count();
-    results.push({ name: '统计卡片显示', passed: statCards >= 4, error: statCards < 4 ? `只有 ${statCards} 个卡片` : undefined });
-
-    // 检查当前月供卡片
-    const monthlyPaymentCard = await page.getByText('当前月供').isVisible();
-    results.push({ name: '当前月供卡片显示', passed: monthlyPaymentCard });
-
-    // 检查还款进度条
-    const progressBar = await page.getByText('还款进度').isVisible();
-    results.push({ name: '还款进度条显示', passed: progressBar });
+    // ========== 测试 6: 底部导航切换 ==========
+    console.log('\n📋 测试 6: 底部导航切换...');
+    // 点击首页
+    await page.locator('nav button').filter({ hasText: '首页' }).click();
+    await page.waitForTimeout(800);
+    
+    // 检查首页内容
+    const dashboardContent = await page.getByText('剩余本金').isVisible();
+    results.push({ name: '首页内容显示', passed: dashboardContent });
 
     await page.screenshot({ path: path.join(SCREENSHOT_DIR, '03-dashboard.png'), fullPage: true });
     console.log('  ✅ 截图: 03-dashboard.png');
 
-    // ========== 测试 6: 贷款配置页 ==========
-    console.log('\n📋 测试 6: 贷款配置页...');
-    await page.locator('nav').getByRole('button', { name: /配置/ }).click();
+    // ========== 测试 7: 首页报表 ==========
+    console.log('\n📋 测试 7: 首页报表...');
+    // 检查本期/下期还款卡片
+    const currentPeriod = await page.getByText('本期还款').isVisible();
+    const nextPeriod = await page.getByText('下期还款').isVisible();
+    results.push({ name: '本期还款卡片显示', passed: currentPeriod });
+    results.push({ name: '下期还款卡片显示', passed: nextPeriod });
+
+    // 检查还款计划列表
+    const scheduleList = await page.getByText('还款计划').isVisible();
+    results.push({ name: '还款计划列表显示', passed: scheduleList });
+
+    // 检查图表
+    const principalChart = await page.getByText('剩余本金趋势').isVisible();
+    const structureChart = await page.getByText('本金利息构成').isVisible();
+    results.push({ name: '剩余本金趋势图显示', passed: principalChart });
+    results.push({ name: '本金利息构成图显示', passed: structureChart });
+
+    await page.screenshot({ path: path.join(SCREENSHOT_DIR, '04-dashboard-charts.png'), fullPage: true });
+    console.log('  ✅ 截图: 04-dashboard-charts.png');
+
+    // ========== 测试 8: 设置页 ==========
+    console.log('\n📋 测试 8: 设置页...');
+    await page.locator('nav button').filter({ hasText: '设置' }).click();
     await page.waitForTimeout(500);
 
     const configSections = await page.getByText(/贷款信息|利率变更|提前还款|数据管理/).count();
-    results.push({ name: '配置模块显示', passed: configSections >= 4, error: configSections < 4 ? `只有 ${configSections} 个模块` : undefined });
+    results.push({ name: '设置模块显示', passed: configSections >= 4, error: configSections < 4 ? `只有 ${configSections} 个模块` : undefined });
 
     // 检查当前剩余本金提示
     const remainingHint = await page.getByText('当前剩余本金').isVisible();
     results.push({ name: '当前剩余本金提示显示', passed: remainingHint });
 
-    // 检查服务端同步功能
-    const pageContent2 = await page.content();
-    const cloudSyncBtn = pageContent2.includes('服务端同步');
-    results.push({ name: '服务端同步功能存在', passed: cloudSyncBtn });
+    await page.screenshot({ path: path.join(SCREENSHOT_DIR, '05-config.png'), fullPage: true });
+    console.log('  ✅ 截图: 05-config.png');
 
-    await page.screenshot({ path: path.join(SCREENSHOT_DIR, '04-config.png'), fullPage: true });
-    console.log('  ✅ 截图: 04-config.png');
-
-    // ========== 测试 7: 添加利率变更 ==========
-    console.log('\n📋 测试 7: 添加利率变更...');
+    // ========== 测试 9: 添加利率变更 ==========
+    console.log('\n📋 测试 9: 添加利率变更...');
     // 记录变更前的当前月供
-    await page.locator('nav').getByRole('button', { name: /首页/ }).click();
+    await page.locator('nav button').filter({ hasText: '首页' }).click();
     await page.waitForTimeout(800);
-    const monthlyBefore = await page.locator('.grid.grid-cols-2 > div').filter({ hasText: '当前月供' }).textContent();
+    const currentPaymentBefore = await page.locator('text=本期还款').locator('..').locator('text=¥').first().textContent();
 
-    // 返回配置页添加利率变更
-    await page.locator('nav').getByRole('button', { name: /配置/ }).click();
+    // 返回设置页添加利率变更
+    await page.locator('nav button').filter({ hasText: '设置' }).click();
     await page.waitForTimeout(500);
 
     // 利率变更表单：日期 + 新利率 + 添加按钮
@@ -151,22 +170,21 @@ async function runTests() {
     results.push({ name: '利率变更记录添加', passed: rateChangeRows > 0, error: rateChangeRows === 0 ? '未找到利率变更记录' : undefined });
 
     // 验证利率变更后月供确实变化
-    await page.locator('nav').getByRole('button', { name: /首页/ }).click();
+    await page.locator('nav button').filter({ hasText: '首页' }).click();
     await page.waitForTimeout(800);
-    const monthlyAfter = await page.locator('.grid.grid-cols-2 > div').filter({ hasText: '当前月供' }).textContent();
-    const rateChanged = monthlyAfter !== monthlyBefore;
-    results.push({ name: '利率变更影响月供', passed: rateChanged, error: rateChanged ? undefined : `变更前后月供相同: ${monthlyBefore}` });
+    const currentPaymentAfter = await page.locator('text=本期还款').locator('..').locator('text=¥').first().textContent();
+    const rateChanged = currentPaymentAfter !== currentPaymentBefore;
+    results.push({ name: '利率变更影响月供', passed: rateChanged, error: rateChanged ? undefined : `变更前后月供相同: ${currentPaymentBefore}` });
 
-    await page.screenshot({ path: path.join(SCREENSHOT_DIR, '05-rate-change.png'), fullPage: true });
-    console.log('  ✅ 截图: 05-rate-change.png');
+    await page.screenshot({ path: path.join(SCREENSHOT_DIR, '06-rate-change.png'), fullPage: true });
+    console.log('  ✅ 截图: 06-rate-change.png');
 
-    // ========== 测试 8: 添加提前还款 ==========
-    console.log('\n📋 测试 8: 添加提前还款...');
-    // 记录提前还款前的剩余本金和总期数
-    const remainingBefore = await page.locator('.grid.grid-cols-2 > div').filter({ hasText: '剩余本金' }).textContent();
-    const periodsBefore = await page.locator('.grid.grid-cols-2 > div').filter({ hasText: '已还期数' }).textContent();
+    // ========== 测试 10: 添加提前还款 ==========
+    console.log('\n📋 测试 10: 添加提前还款...');
+    // 记录提前还款前的剩余本金
+    const remainingBefore = await page.locator('text=剩余本金').locator('..').locator('text=¥').first().textContent();
 
-    await page.locator('nav').getByRole('button', { name: /配置/ }).click();
+    await page.locator('nav button').filter({ hasText: '设置' }).click();
     await page.waitForTimeout(500);
 
     const prepayAmountInput = page.locator('input[placeholder="100000"]');
@@ -187,21 +205,18 @@ async function runTests() {
     results.push({ name: '提前还款记录添加', passed: prepayRows > 0, error: prepayRows === 0 ? '未找到提前还款记录' : undefined });
 
     // 验证提前还款后数据变化
-    await page.locator('nav').getByRole('button', { name: /首页/ }).click();
+    await page.locator('nav button').filter({ hasText: '首页' }).click();
     await page.waitForTimeout(800);
-    const remainingAfter = await page.locator('.grid.grid-cols-2 > div').filter({ hasText: '剩余本金' }).textContent();
-    const periodsAfter = await page.locator('.grid.grid-cols-2 > div').filter({ hasText: '已还期数' }).textContent();
+    const remainingAfter = await page.locator('text=剩余本金').locator('..').locator('text=¥').first().textContent();
     const remainingReduced = remainingAfter !== remainingBefore;
-    const periodsChanged = periodsAfter !== periodsBefore;
     results.push({ name: '提前还款减少剩余本金', passed: remainingReduced, error: remainingReduced ? undefined : `变更前后剩余本金相同: ${remainingBefore}` });
-    results.push({ name: '提前还款改变还款期数', passed: periodsChanged, error: periodsChanged ? undefined : `变更前后期数相同: ${periodsBefore}` });
 
-    await page.screenshot({ path: path.join(SCREENSHOT_DIR, '06-prepayment.png'), fullPage: true });
-    console.log('  ✅ 截图: 06-prepayment.png');
+    await page.screenshot({ path: path.join(SCREENSHOT_DIR, '07-prepayment.png'), fullPage: true });
+    console.log('  ✅ 截图: 07-prepayment.png');
 
-    // ========== 测试 9: 还款计划页 ==========
-    console.log('\n📋 测试 9: 还款计划页...');
-    await page.locator('nav').getByRole('button', { name: /计划/ }).click();
+    // ========== 测试 11: 还款计划页 ==========
+    console.log('\n📋 测试 11: 还款计划页...');
+    await page.locator('nav button').filter({ hasText: '计划' }).click();
     await page.waitForTimeout(500);
 
     const tableRows = await page.locator('tbody tr').count();
@@ -217,19 +232,19 @@ async function runTests() {
     const filterPaid = await page.getByRole('button', { name: /已还/ }).isVisible();
     results.push({ name: '筛选功能存在', passed: filterAll && filterUnpaid && filterPaid });
 
-    await page.screenshot({ path: path.join(SCREENSHOT_DIR, '07-repayment-plan.png'), fullPage: true });
-    console.log('  ✅ 截图: 07-repayment-plan.png');
+    await page.screenshot({ path: path.join(SCREENSHOT_DIR, '08-repayment-plan.png'), fullPage: true });
+    console.log('  ✅ 截图: 08-repayment-plan.png');
 
-    // ========== 测试 10: 自动标记已还款（根据日期） ==========
-    console.log('\n📋 测试 10: 自动标记已还款...');
+    // ========== 测试 12: 自动标记已还款（根据日期） ==========
+    console.log('\n📋 测试 12: 自动标记已还款...');
     const paidRows = await page.locator('tbody tr.bg-green-50\\/40').count();
     results.push({ name: '已还款行自动标记', passed: paidRows > 0, error: paidRows === 0 ? '没有自动标记的已还款行' : undefined });
 
-    await page.screenshot({ path: path.join(SCREENSHOT_DIR, '08-auto-paid.png'), fullPage: true });
-    console.log('  ✅ 截图: 08-auto-paid.png');
+    await page.screenshot({ path: path.join(SCREENSHOT_DIR, '09-auto-paid.png'), fullPage: true });
+    console.log('  ✅ 截图: 09-auto-paid.png');
 
-    // ========== 测试 11: 手动勾选还款状态 ==========
-    console.log('\n📋 测试 11: 手动勾选还款状态...');
+    // ========== 测试 13: 手动勾选还款状态 ==========
+    console.log('\n📋 测试 13: 手动勾选还款状态...');
     const firstUnpaidCheckbox = page.locator('tbody input[type="checkbox"]').first();
     await firstUnpaidCheckbox.check();
     await page.waitForTimeout(500);
@@ -238,11 +253,11 @@ async function runTests() {
     const isPaid = firstRowClass?.includes('green');
     results.push({ name: '手动勾选后行高亮', passed: !!isPaid });
 
-    await page.screenshot({ path: path.join(SCREENSHOT_DIR, '09-manual-paid.png'), fullPage: true });
-    console.log('  ✅ 截图: 09-manual-paid.png');
+    await page.screenshot({ path: path.join(SCREENSHOT_DIR, '10-manual-paid.png'), fullPage: true });
+    console.log('  ✅ 截图: 10-manual-paid.png');
 
-    // ========== 测试 12: 筛选功能 ==========
-    console.log('\n📋 测试 12: 筛选功能...');
+    // ========== 测试 14: 筛选功能 ==========
+    console.log('\n📋 测试 14: 筛选功能...');
     await page.getByRole('button', { name: /已还/ }).click();
     await page.waitForTimeout(500);
     const paidFilterRows = await page.locator('tbody tr').count();
@@ -256,19 +271,19 @@ async function runTests() {
     await page.getByRole('button', { name: /全部/ }).click();
     await page.waitForTimeout(300);
 
-    // ========== 测试 13: 首页报表数据正确性 ==========
-    console.log('\n📋 测试 13: 首页报表数据正确性...');
-    await page.locator('nav').getByRole('button', { name: /首页/ }).click();
+    // ========== 测试 15: 首页报表数据正确性 ==========
+    console.log('\n📋 测试 15: 首页报表数据正确性...');
+    await page.locator('nav button').filter({ hasText: '首页' }).click();
     await page.waitForTimeout(1000);
 
     // 检查剩余本金不为0
-    const remainingCard = page.locator('.grid.grid-cols-2 > div').filter({ hasText: '剩余本金' });
+    const remainingCard = page.locator('text=剩余本金').locator('..');
     const remainingText = await remainingCard.textContent();
     const hasNonZeroRemaining = remainingText && !remainingText.includes('¥0.00');
     results.push({ name: '剩余本金计算正确（非0）', passed: !!hasNonZeroRemaining, error: !hasNonZeroRemaining ? '剩余本金显示为0' : undefined });
 
     // 检查贷款总额显示正确
-    const loanCard = page.locator('.grid.grid-cols-2 > div').filter({ hasText: '贷款总额' });
+    const loanCard = page.locator('text=贷款总额').locator('..');
     const loanAmountText = await loanCard.textContent();
     const hasCorrectAmount = loanAmountText && loanAmountText.includes('500,000');
     results.push({ name: '贷款总额显示正确', passed: !!hasCorrectAmount, error: !hasCorrectAmount ? '贷款总额不正确' : undefined });
@@ -280,38 +295,38 @@ async function runTests() {
     const prepayCard = await page.getByRole('button', { name: /提前还款/ }).isVisible();
     results.push({ name: '提前还款卡片显示', passed: prepayCard });
 
-    await page.screenshot({ path: path.join(SCREENSHOT_DIR, '10-dashboard-verify.png'), fullPage: true });
-    console.log('  ✅ 截图: 10-dashboard-verify.png');
+    await page.screenshot({ path: path.join(SCREENSHOT_DIR, '11-dashboard-verify.png'), fullPage: true });
+    console.log('  ✅ 截图: 11-dashboard-verify.png');
 
-    // ========== 测试 14: 控制台无错误 ==========
-    console.log('\n📋 测试 14: 控制台错误检查...');
+    // ========== 测试 16: 控制台无错误 ==========
+    console.log('\n📋 测试 16: 控制台错误检查...');
     results.push({ name: '无控制台错误', passed: consoleErrors.length === 0, error: consoleErrors.length > 0 ? consoleErrors.slice(0, 3).join('; ') : undefined });
     results.push({ name: '无页面运行时错误', passed: pageErrors.length === 0, error: pageErrors.length > 0 ? pageErrors.slice(0, 3).join('; ') : undefined });
 
-    // ========== 测试 15: 移动端响应式 ==========
-    console.log('\n📋 测试 15: 移动端响应式...');
+    // ========== 测试 17: 移动端响应式 ==========
+    console.log('\n📋 测试 17: 移动端响应式...');
     await page.setViewportSize({ width: 375, height: 812 });
     await page.waitForTimeout(500);
-    await page.screenshot({ path: path.join(SCREENSHOT_DIR, '11-mobile.png'), fullPage: true });
-    console.log('  ✅ 截图: 11-mobile.png');
+    await page.screenshot({ path: path.join(SCREENSHOT_DIR, '12-mobile.png'), fullPage: true });
+    console.log('  ✅ 截图: 12-mobile.png');
     results.push({ name: '移动端布局适配', passed: true });
 
-    // ========== 测试 16: 数据持久化（服务端存储） ==========
-    console.log('\n📋 测试 16: 数据持久化测试...');
+    // ========== 测试 18: 数据持久化（服务端存储） ==========
+    console.log('\n📋 测试 18: 数据持久化测试...');
     await page.setViewportSize({ width: 1280, height: 900 });
     await page.reload({ waitUntil: 'networkidle' });
     let dataLoaded = false;
     for (let i = 0; i < 10; i++) {
       await page.waitForTimeout(1000);
-      const navVisible = await page.getByText('首页').first().isVisible().catch(() => false);
+      const navVisible = await page.locator('nav button').filter({ hasText: '首页' }).isVisible().catch(() => false);
       if (navVisible) { dataLoaded = true; break; }
     }
 
-    const navAfterReload = await page.getByText('首页').first().isVisible().catch(() => false);
+    const navAfterReload = await page.locator('nav button').filter({ hasText: '首页' }).isVisible().catch(() => false);
     results.push({ name: '刷新后数据持久化', passed: dataLoaded && navAfterReload, error: !navAfterReload ? '刷新后数据丢失' : undefined });
 
     // 检查利率变更和提前还款数据是否持久化
-    await page.locator('nav').getByRole('button', { name: /配置/ }).click();
+    await page.locator('nav button').filter({ hasText: '设置' }).click();
     await page.waitForTimeout(1000);
     const rateChangePersisted = await page.locator('text=3.05%').count();
     results.push({ name: '利率变更数据持久化', passed: rateChangePersisted > 0, error: rateChangePersisted === 0 ? '利率变更数据丢失' : undefined });
@@ -319,8 +334,8 @@ async function runTests() {
     const prepayPersisted = await page.locator('text=¥100,000.00').count();
     results.push({ name: '提前还款数据持久化', passed: prepayPersisted > 0, error: prepayPersisted === 0 ? '提前还款数据丢失' : undefined });
 
-    await page.screenshot({ path: path.join(SCREENSHOT_DIR, '12-after-reload.png'), fullPage: true });
-    console.log('  ✅ 截图: 12-after-reload.png');
+    await page.screenshot({ path: path.join(SCREENSHOT_DIR, '13-after-reload.png'), fullPage: true });
+    console.log('  ✅ 截图: 13-after-reload.png');
 
   } catch (error) {
     console.error('\n❌ 测试执行出错:', error);

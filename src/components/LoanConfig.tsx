@@ -3,7 +3,6 @@ import type { LoanInfo, PrepaymentRecord, RateChangeRecord } from '@/types/loan'
 import { useLoanStore } from '@/stores/loanStore';
 import { formatMoney, getCurrentRemainingPrincipal } from '@/utils/calculator';
 import DataManager from './DataManager';
-import { ArrowLeft } from 'lucide-react';
 
 export default function LoanConfig() {
   const {
