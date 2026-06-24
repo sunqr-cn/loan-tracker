@@ -69,7 +69,7 @@ export const useLoanStore = create<LoanStore>((set, get) => ({
   rateChanges: [],
   hasData: false,
   isLoading: true,
-  activeTab: 'dashboard',
+  activeTab: 'config',
   syncStatus: {
     configured: isServerConfigured(),
     lastSync: null,
