@@ -13,6 +13,7 @@ export default function Dashboard() {
 
   if (!loanInfo) return null;
 
+  const totalPrincipal = schedule.reduce((sum, s) => sum + s.principal, 0);
   const totalInterest = schedule.reduce((sum, s) => sum + s.interest, 0);
   const totalPayment = schedule.reduce((sum, s) => sum + s.monthlyPayment, 0);
   const paidCount = schedule.filter(s => s.paid).length;
