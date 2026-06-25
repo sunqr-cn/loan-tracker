@@ -270,12 +270,9 @@ export const useLoanStore = create<LoanStore>((set, get) => ({
         return false;
       }
       if (data && data.loanInfo && data.schedule) {
-        // 按今天日期重新计算还款状态（双保险：即使后台 cron 没跑，打开也立即正确）
-        const freshSchedule = generateSchedule(data.loanInfo, data.prepayments || [], data.rateChanges || []);
-        const schedule = preservePaidStatus(data.schedule, freshSchedule);
         set({
           loanInfo: data.loanInfo,
-          schedule,
+          schedule: data.schedule,
           prepayments: data.prepayments || [],
           rateChanges: data.rateChanges || [],
           hasData: true,

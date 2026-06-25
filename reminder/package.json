@@ -1,0 +1,9 @@
+{
+  "name": "loan-tracker-reminder",
+  "version": "1.0.0",
+  "private": true,
+  "description": "还款计划自动更新与邮件提醒服务",
+  "scripts": {
+    "recalc": "node recalc.js"
+  }
+}

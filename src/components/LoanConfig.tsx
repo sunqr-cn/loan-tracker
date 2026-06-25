@@ -2,8 +2,9 @@ import { useState } from 'react';
 import type { LoanInfo, PrepaymentRecord, RateChangeRecord } from '@/types/loan';
 import { useLoanStore } from '@/stores/loanStore';
 import { formatMoney, getCurrentRemainingPrincipal } from '@/utils/calculator';
+import { recalcOnServer } from '@/utils/serverSync';
 import DataManager from './DataManager';
-import { ArrowLeft, ChevronRight, Calculator, TrendingDown, PiggyBank, Database, Home } from 'lucide-react';
+import { ArrowLeft, ChevronRight, Calculator, TrendingDown, PiggyBank, Database, Home, RefreshCw } from 'lucide-react';
 
 type ConfigSection = 'menu' | 'loanInfo' | 'rateChange' | 'prepayment' | 'data';
 
@@ -32,8 +33,21 @@ export default function LoanConfig() {
 }
 
 function ConfigMenu({ onNavigate }: { onNavigate: (s: ConfigSection) => void }) {
-  const { setActiveTab, loanInfo, schedule } = useLoanStore();
+  const { setActiveTab, loanInfo, schedule, loadFromServer } = useLoanStore();
+  const [updating, setUpdating] = useState(false);
   const currentRemaining = schedule.length > 0 ? getCurrentRemainingPrincipal(schedule) : 0;
+
+  const handleManualUpdate = async () => {
+    setUpdating(true);
+    try {
+      await recalcOnServer();
+      await loadFromServer();
+    } catch (err) {
+      console.error('更新失败:', err);
+    } finally {
+      setUpdating(false);
+    }
+  };
 
   const menuItems = [
     {
@@ -93,6 +107,21 @@ function ConfigMenu({ onNavigate }: { onNavigate: (s: ConfigSection) => void }) 
             <ChevronRight className="w-4 h-4 text-gray-300 flex-shrink-0" />
           </button>
         ))}
+
+        {/* 手动更新按钮 */}
+        <button
+          onClick={handleManualUpdate}
+          disabled={updating}
+          className="w-full bg-gradient-to-r from-blue-500 to-indigo-500 rounded-2xl p-4 border border-blue-400/20 shadow-md hover:shadow-lg transition-all flex items-center gap-4 text-left disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          <div className="w-11 h-11 rounded-xl bg-blue-100 flex items-center justify-center flex-shrink-0">
+            <RefreshCw className={`w-5 h-5 text-blue-600 ${updating ? 'animate-spin' : ''}`} />
+          </div>
+          <div className="flex-1 min-w-0">
+            <div className="text-sm font-semibold text-white">手动更新还款计划</div>
+            <div className="text-xs text-blue-100 mt-0.5">重新计算还款状态并同步</div>
+          </div>
+        </button>
       </div>
     </div>
   );
