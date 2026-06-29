@@ -273,7 +273,7 @@ function preservePaidStatus(oldSchedule, newSchedule) {
 
 // ============ SMTP 邮件发送（163 邮箱） ============
 
-function smtpSendMail({ host, port, user, pass, to, subject, html }) {
+function smtpSendMailOnce({ host, port, user, pass, to, subject, html }) {
   return new Promise((resolve, reject) => {
     const messageId = `<${crypto.randomUUID()}@smtp.163.com>`;
     const from = user;
@@ -295,6 +295,8 @@ function smtpSendMail({ host, port, user, pass, to, subject, html }) {
     const bodyWrapped = bodyBase64.match(/.{1,76}/g).join('\r\n');
 
     const mailData = `${headers}\r\n\r\n${bodyWrapped}\r\n.`;
+
+    console.log(`[SMTP] 连接 ${host}:${port}...`);
 
     // 使用 TLS 连接（端口 465）
     const socket = tls.connect({ host, port, servername: host }, () => {
@@ -366,20 +368,57 @@ function smtpSendMail({ host, port, user, pass, to, subject, html }) {
       }
 
       socket.on('data', handleData);
-      socket.on('error', (err) => { cleanup(); reject(err); });
+      socket.on('error', (err) => { cleanup(); reject(new Error(`SMTP 连接错误: ${err.message}`)); });
     });
 
-    socket.on('error', (err) => reject(err));
-    socket.setTimeout(30000, () => { socket.destroy(); reject(new Error('SMTP 连接超时')); });
+    socket.on('error', (err) => reject(new Error(`SMTP 连接失败: ${err.message || err}`)));
+    socket.setTimeout(30000, () => { socket.destroy(); reject(new Error('SMTP 连接超时（30秒）')); });
   });
+}
+
+// 带重试的邮件发送
+async function smtpSendMail({ host, port, user, pass, to, subject, html }, maxRetries = 3) {
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    try {
+      console.log(`[SMTP] 第 ${attempt}/${maxRetries} 次尝试发送...`);
+      await smtpSendMailOnce({ host, port, user, pass, to, subject, html });
+      console.log(`[SMTP] 发送成功`);
+      return { success: true };
+    } catch (err) {
+      const errMsg = err.message || String(err);
+      console.error(`[SMTP] 第 ${attempt} 次失败: ${errMsg}`);
+      if (attempt < maxRetries) {
+        const delay = attempt * 5000; // 递增延迟：5s, 10s, 15s
+        console.log(`[SMTP] ${delay/1000}秒后重试...`);
+        await new Promise(r => setTimeout(r, delay));
+      } else {
+        throw new Error(`邮件发送失败（重试${maxRetries}次后）: ${errMsg}`);
+      }
+    }
+  }
 }
 
 // ============ 邮件内容生成 ============
 
 function buildReminderEmail(schedule, loanInfo) {
-  const today = todayStr();
-  const upcoming = schedule.filter(s => s.date >= today && !s.paid).slice(0, 3);
+  const today = new Date();
+  const todayDateStr = todayStr();
 
+  // 找到下一个未还款的期数
+  const nextUnpaid = schedule.find(s => s.date >= todayDateStr && !s.paid);
+  if (!nextUnpaid) return null;
+
+  // 计算距离还款日还有几天
+  const paymentDate = parseDateLocal(nextUnpaid.date);
+  const diffDays = Math.ceil((paymentDate - today) / (1000 * 60 * 60 * 24));
+
+  // 只在还款日前3天内（含当天）才发送邮件
+  if (diffDays > 3) {
+    console.log(`下次还款日 ${nextUnpaid.date} 距今 ${diffDays} 天，未到提醒时间（≤3天）`);
+    return null;
+  }
+
+  const upcoming = schedule.filter(s => s.date >= todayDateStr && !s.paid).slice(0, 3);
   if (upcoming.length === 0) return null;
 
   const next = upcoming[0];
