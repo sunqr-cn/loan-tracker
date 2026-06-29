@@ -149,7 +149,28 @@ export const useLoanStore = create<LoanStore>((set, get) => ({
     if (!loanInfo) return;
     const newSchedule = recalcAll(loanInfo, prepayments, get().rateChanges);
     const schedule = preservePaidStatus(get().schedule, newSchedule);
-    set({ prepayments, schedule });
+
+    // 从还款账户扣减提前还款金额
+    const account = get().repaymentAccount;
+    if (account && account.balance >= record.amount) {
+      const newBalance = Math.round((account.balance - record.amount) * 100) / 100;
+      const transaction: Transaction = {
+        id: generateId(),
+        date: record.date,
+        type: 'withdraw',
+        amount: record.amount,
+        balanceAfter: newBalance,
+        note: `提前还款（第${newSchedule.length}期剩余）`,
+      };
+      const newAccount: RepaymentAccount = {
+        balance: newBalance,
+        transactions: [transaction, ...account.transactions],
+      };
+      set({ prepayments, schedule, repaymentAccount: newAccount });
+    } else {
+      set({ prepayments, schedule });
+    }
+
     saveToLocalStorage(get());
     get().saveToServerStore();
   },
