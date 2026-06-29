@@ -187,12 +187,35 @@ export const useLoanStore = create<LoanStore>((set, get) => ({
   },
 
   deletePrepayment: (id) => {
+    // 找到要删除的提前还款记录
+    const deletedRecord = get().prepayments.find((p) => p.id === id);
     const prepayments = get().prepayments.filter((p) => p.id !== id);
     const loanInfo = get().loanInfo;
     if (!loanInfo) return;
     const newSchedule = recalcAll(loanInfo, prepayments, get().rateChanges);
     const schedule = preservePaidStatus(get().schedule, newSchedule);
-    set({ prepayments, schedule });
+
+    // 返还提前还款金额到账户
+    if (deletedRecord) {
+      const account = get().repaymentAccount || { balance: 0, transactions: [] };
+      const newBalance = Math.round((account.balance + deletedRecord.amount) * 100) / 100;
+      const transaction: Transaction = {
+        id: generateId(),
+        date: new Date().toISOString().slice(0, 10),
+        type: 'deposit',
+        amount: deletedRecord.amount,
+        balanceAfter: newBalance,
+        note: `取消提前还款（原${deletedRecord.date}）`,
+      };
+      const newAccount: RepaymentAccount = {
+        balance: newBalance,
+        transactions: [transaction, ...account.transactions],
+      };
+      set({ prepayments, schedule, repaymentAccount: newAccount });
+    } else {
+      set({ prepayments, schedule });
+    }
+
     saveToLocalStorage(get());
     get().saveToServerStore();
   },
