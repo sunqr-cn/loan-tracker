@@ -398,9 +398,46 @@ async function smtpSendMail({ host, port, user, pass, to, subject, html }, maxRe
   }
 }
 
+// ============ 自动扣款 ============
+
+function processAutoDeduction(data, schedule) {
+  const todayDateStr = todayStr();
+  const account = data.repaymentAccount;
+  if (!account) return;
+
+  // 找到今天到期的未还款期数
+  const todayPayment = schedule.find(s => s.date === todayDateStr && !s.paid);
+  if (!todayPayment) {
+    console.log(`今天 ${todayDateStr} 没有到期还款，跳过自动扣款`);
+    return;
+  }
+
+  const paymentAmount = todayPayment.monthlyPayment;
+  if (account.balance < paymentAmount) {
+    console.log(`还款账户余额 ¥${account.balance.toFixed(2)} 不足，无法自动扣款 ¥${paymentAmount.toFixed(2)}`);
+    return;
+  }
+
+  // 执行扣款
+  const newBalance = round2(account.balance - paymentAmount);
+  const transaction = {
+    id: crypto.randomUUID(),
+    date: todayDateStr,
+    type: 'repayment',
+    amount: paymentAmount,
+    balanceAfter: newBalance,
+    note: `第${todayPayment.period}期自动扣款`,
+  };
+
+  account.balance = newBalance;
+  account.transactions = [transaction, ...(account.transactions || [])];
+
+  console.log(`自动扣款成功：第${todayPayment.period}期 ¥${paymentAmount.toFixed(2)}，扣款后余额 ¥${newBalance.toFixed(2)}`);
+}
+
 // ============ 邮件内容生成 ============
 
-function buildReminderEmail(schedule, loanInfo) {
+function buildReminderEmail(schedule, loanInfo, account) {
   const today = new Date();
   const todayDateStr = todayStr();
 
@@ -425,6 +462,10 @@ function buildReminderEmail(schedule, loanInfo) {
   const remainingPrincipal = next.remainingPrincipal;
   const paidCount = schedule.filter(s => s.paid).length;
   const progress = ((paidCount / schedule.length) * 100).toFixed(1);
+
+  // 还款账户信息
+  const accountBalance = account?.balance || 0;
+  const accountSufficient = accountBalance >= next.monthlyPayment;
 
   let rows = upcoming.map(s => `
     <tr>
@@ -462,6 +503,21 @@ function buildReminderEmail(schedule, loanInfo) {
           <div style="font-size:16px;font-weight:bold;color:#1f2937;margin-top:2px;">${paidCount}/${schedule.length}</div>
         </div>
       </div>
+      <div style="background:linear-gradient(135deg,#10b981,#06b6d4);border-radius:12px;padding:16px;margin-bottom:16px;color:white;">
+        <div style="display:flex;justify-content:space-between;align-items:center;">
+          <div>
+            <div style="font-size:12px;opacity:0.9;">还款账户余额</div>
+            <div style="font-size:22px;font-weight:bold;margin-top:2px;">¥${accountBalance.toLocaleString('zh-CN', {minimumFractionDigits:2})}</div>
+          </div>
+          <div style="text-align:right;">
+            <div style="font-size:11px;opacity:0.9;">下期还款</div>
+            <div style="font-size:14px;font-weight:bold;margin-top:2px;">¥${next.monthlyPayment.toLocaleString('zh-CN', {minimumFractionDigits:2})}</div>
+            <div style="font-size:11px;margin-top:4px;padding:2px 8px;border-radius:10px;background:${accountSufficient ? 'rgba(255,255,255,0.3)' : 'rgba(239,68,68,0.5)'};">
+              ${accountSufficient ? '✓ 余额充足' : '⚠ 余额不足'}
+            </div>
+          </div>
+        </div>
+      </div>
       <div style="font-size:13px;font-weight:600;color:#374151;margin-bottom:8px;">近期还款计划</div>
       <table style="width:100%;border-collapse:collapse;font-size:12px;">
         <thead>
@@ -484,7 +540,7 @@ function buildReminderEmail(schedule, loanInfo) {
 </html>`;
 
   return {
-    subject: `还款提醒 - ${next.date} 应还 ¥${next.monthlyPayment.toLocaleString('zh-CN', {minimumFractionDigits:2})}`,
+    subject: `还款提醒 - ${next.date} 应还 ¥${next.monthlyPayment.toLocaleString('zh-CN', {minimumFractionDigits:2})} | 账户余额 ¥${accountBalance.toLocaleString('zh-CN', {minimumFractionDigits:2})}`,
     html,
   };
 }
@@ -527,7 +583,10 @@ async function main() {
   const paidCount = schedule.filter(s => s.paid).length;
   console.log(`已还期数: ${paidCount}, 待还期数: ${schedule.length - paidCount}`);
 
-  // 4. 写回 API
+  // 4. 自动扣款（如果今天有到期还款且账户余额充足）
+  processAutoDeduction(data, schedule);
+
+  // 5. 写回 API
   data.schedule = schedule;
   data.meta = data.meta || { createdAt: nowISO(), updatedAt: nowISO() };
 
@@ -539,9 +598,9 @@ async function main() {
     process.exit(1);
   }
 
-  // 5. 检查是否需要发送邮件提醒
+  // 6. 检查是否需要发送邮件提醒
   if (SMTP_USER && SMTP_PASS && SMTP_TO) {
-    const email = buildReminderEmail(schedule, data.loanInfo);
+    const email = buildReminderEmail(schedule, data.loanInfo, data.repaymentAccount);
     if (email) {
       console.log(`发送邮件提醒到 ${SMTP_TO}: ${email.subject}`);
       try {
@@ -559,7 +618,7 @@ async function main() {
         console.error('邮件发送失败:', err.message);
       }
     } else {
-      console.log('没有待还款项，跳过邮件提醒');
+      console.log('没有待还款项或未到提醒时间，跳过邮件提醒');
     }
   } else {
     console.log('未配置 SMTP，跳过邮件提醒');
