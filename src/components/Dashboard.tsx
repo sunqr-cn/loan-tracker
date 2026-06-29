@@ -1,10 +1,10 @@
 import type { ScheduleItem } from '@/types/loan';
 import { useLoanStore } from '@/stores/loanStore';
 import { formatMoney, getCurrentRemainingPrincipal } from '@/utils/calculator';
-import { Clock, Calendar, TrendingUp, PiggyBank } from 'lucide-react';
+import { Clock, Calendar, TrendingUp, PiggyBank, Wallet } from 'lucide-react';
 
 export default function Dashboard() {
-  const { loanInfo, schedule } = useLoanStore();
+  const { loanInfo, schedule, repaymentAccount } = useLoanStore();
 
   if (!loanInfo) return null;
 
@@ -25,6 +25,13 @@ export default function Dashboard() {
 
   const currentPeriod = schedule.find(s => !s.paid);
   const nextPeriod = schedule.filter(s => !s.paid)[1];
+
+  // 还款账户信息
+  const accountBalance = repaymentAccount?.balance || 0;
+  const accountTransactions = repaymentAccount?.transactions || [];
+  const nextPayment = currentPeriod?.monthlyPayment || 0;
+  const accountSufficient = accountBalance >= nextPayment;
+  const accountCoverage = nextPayment > 0 ? (accountBalance / nextPayment) : 0;
 
   // 构成比例（基于贷款总额，不是 schedule 本金和，因为提前还款会减少 schedule 本金）
   const totalPaymentActual = loanInfo.totalAmount + totalInterest;
@@ -92,6 +99,26 @@ export default function Dashboard() {
             </div>
           </div>
         )}
+      </div>
+
+      {/* 还款账户 */}
+      <div className="bg-gradient-to-br from-emerald-500 via-teal-500 to-cyan-500 rounded-2xl p-4 text-white shadow-lg shadow-emerald-500/20">
+        <div className="flex items-center justify-between mb-3">
+          <div className="flex items-center gap-2">
+            <Wallet className="w-5 h-5" />
+            <span className="text-sm font-medium">还款账户</span>
+          </div>
+          <div className={`text-xs px-2 py-1 rounded-full ${
+            accountSufficient ? 'bg-white/20' : 'bg-red-400/30'
+          }`}>
+            {accountSufficient ? '余额充足' : '余额不足'}
+          </div>
+        </div>
+        <div className="text-2xl font-bold mb-2">¥{formatMoney(accountBalance)}</div>
+        <div className="flex items-center justify-between text-xs text-emerald-100">
+          <span>下期还款 ¥{formatMoney(nextPayment)}</span>
+          <span>可还 {Math.floor(accountCoverage)} 期</span>
+        </div>
       </div>
 
       {/* 核心数据 */}

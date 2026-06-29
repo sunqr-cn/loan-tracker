@@ -41,11 +41,26 @@ export interface RateChangeRecord {
   remainingMonths: number;  // 调整时剩余期数
 }
 
+export interface Transaction {
+  id: string;
+  date: string;           // YYYY-MM-DD
+  type: 'deposit' | 'withdraw' | 'repayment';
+  amount: number;
+  balanceAfter: number;
+  note?: string;
+}
+
+export interface RepaymentAccount {
+  balance: number;
+  transactions: Transaction[];
+}
+
 export interface LoanData {
   loanInfo: LoanInfo;
   schedule: ScheduleItem[];
   prepayments: PrepaymentRecord[];
   rateChanges: RateChangeRecord[];
+  repaymentAccount?: RepaymentAccount;
   meta: {
     createdAt: string;
     updatedAt: string;

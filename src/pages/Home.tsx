@@ -3,6 +3,7 @@ import { useLoanStore } from '@/stores/loanStore';
 import LoanConfig from '@/components/LoanConfig';
 import Dashboard from '@/components/Dashboard';
 import RepaymentPlan from '@/components/RepaymentPlan';
+import RepaymentAccount from '@/components/RepaymentAccount';
 import Layout from '@/components/Layout';
 
 export default function Home() {
@@ -48,8 +49,9 @@ export default function Home() {
   return (
     <Layout>
       {activeTab === 'dashboard' && <Dashboard />}
-      {activeTab === 'config' && <LoanConfig />}
       {activeTab === 'plan' && <RepaymentPlan />}
+      {activeTab === 'account' && <RepaymentAccount />}
+      {activeTab === 'config' && <LoanConfig />}
     </Layout>
   );
 }

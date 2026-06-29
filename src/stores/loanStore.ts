@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import type { LoanInfo, ScheduleItem, PrepaymentRecord, RateChangeRecord, LoanData } from '@/types/loan';
+import type { LoanInfo, ScheduleItem, PrepaymentRecord, RateChangeRecord, LoanData, RepaymentAccount, Transaction } from '@/types/loan';
 import { generateSchedule, generateId } from '@/utils/calculator';
 import {
   fetchFromServer, saveToServer, saveServerConfig, clearServerConfig,
@@ -11,9 +11,10 @@ interface LoanStore {
   schedule: ScheduleItem[];
   prepayments: PrepaymentRecord[];
   rateChanges: RateChangeRecord[];
+  repaymentAccount: RepaymentAccount | null;
   hasData: boolean;
   isLoading: boolean;
-  activeTab: 'dashboard' | 'config' | 'plan';
+  activeTab: 'dashboard' | 'config' | 'plan' | 'account';
   syncStatus: {
     configured: boolean;
     lastSync: string | null;
@@ -21,7 +22,7 @@ interface LoanStore {
     online: boolean;
   };
 
-  setActiveTab: (tab: 'dashboard' | 'config' | 'plan') => void;
+  setActiveTab: (tab: 'dashboard' | 'config' | 'plan' | 'account') => void;
   setLoanInfo: (info: LoanInfo) => void;
   generatePlan: (info: LoanInfo) => void;
   togglePaid: (period: number) => void;
@@ -31,6 +32,8 @@ interface LoanStore {
   addRateChange: (record: Omit<RateChangeRecord, 'id'>) => void;
   updateRateChange: (id: string, record: Omit<RateChangeRecord, 'id'>) => void;
   deleteRateChange: (id: string) => void;
+  deposit: (amount: number, note?: string) => void;
+  withdraw: (amount: number, note?: string) => void;
   exportData: () => void;
   importData: (jsonStr: string) => boolean;
   resetData: () => void;
@@ -74,6 +77,7 @@ function loadFromLocalStorage(): Partial<LoanStore> {
           schedule: data.schedule,
           prepayments: data.prepayments || [],
           rateChanges: data.rateChanges || [],
+          repaymentAccount: data.repaymentAccount || null,
           hasData: true,
           isLoading: false,
         };
@@ -93,6 +97,7 @@ function saveToLocalStorage(state: LoanStore) {
       schedule: state.schedule,
       prepayments: state.prepayments,
       rateChanges: state.rateChanges,
+      repaymentAccount: state.repaymentAccount,
     };
     localStorage.setItem('loan_data', JSON.stringify(data));
   } catch { /* ignore */ }
@@ -103,6 +108,7 @@ export const useLoanStore = create<LoanStore>((set, get) => ({
   schedule: initialData.schedule ?? [],
   prepayments: initialData.prepayments ?? [],
   rateChanges: initialData.rateChanges ?? [],
+  repaymentAccount: initialData.repaymentAccount ?? null,
   hasData: initialData.hasData ?? false,
   isLoading: initialData.isLoading ?? true,
   activeTab: 'dashboard',
@@ -205,6 +211,49 @@ export const useLoanStore = create<LoanStore>((set, get) => ({
     get().saveToServerStore();
   },
 
+  deposit: (amount, note) => {
+    const account = get().repaymentAccount || { balance: 0, transactions: [] };
+    const newBalance = account.balance + amount;
+    const transaction: Transaction = {
+      id: generateId(),
+      date: new Date().toISOString().slice(0, 10),
+      type: 'deposit',
+      amount,
+      balanceAfter: newBalance,
+      note,
+    };
+    const newAccount: RepaymentAccount = {
+      balance: newBalance,
+      transactions: [transaction, ...account.transactions],
+    };
+    set({ repaymentAccount: newAccount });
+    saveToLocalStorage(get());
+    get().saveToServerStore();
+  },
+
+  withdraw: (amount, note) => {
+    const account = get().repaymentAccount || { balance: 0, transactions: [] };
+    if (account.balance < amount) {
+      throw new Error('余额不足');
+    }
+    const newBalance = account.balance - amount;
+    const transaction: Transaction = {
+      id: generateId(),
+      date: new Date().toISOString().slice(0, 10),
+      type: 'withdraw',
+      amount,
+      balanceAfter: newBalance,
+      note,
+    };
+    const newAccount: RepaymentAccount = {
+      balance: newBalance,
+      transactions: [transaction, ...account.transactions],
+    };
+    set({ repaymentAccount: newAccount });
+    saveToLocalStorage(get());
+    get().saveToServerStore();
+  },
+
   exportData: () => {
     const state = get();
     const data: LoanData = {
@@ -212,6 +261,7 @@ export const useLoanStore = create<LoanStore>((set, get) => ({
       schedule: state.schedule,
       prepayments: state.prepayments,
       rateChanges: state.rateChanges,
+      repaymentAccount: state.repaymentAccount || undefined,
       meta: { createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() },
     };
     const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
@@ -232,6 +282,7 @@ export const useLoanStore = create<LoanStore>((set, get) => ({
         schedule: data.schedule,
         prepayments: data.prepayments || [],
         rateChanges: data.rateChanges || [],
+        repaymentAccount: data.repaymentAccount || null,
         hasData: true,
       });
       saveToLocalStorage(get());
@@ -248,6 +299,7 @@ export const useLoanStore = create<LoanStore>((set, get) => ({
       schedule: [],
       prepayments: [],
       rateChanges: [],
+      repaymentAccount: null,
       hasData: false,
     });
     saveToLocalStorage(get());
@@ -275,6 +327,7 @@ export const useLoanStore = create<LoanStore>((set, get) => ({
           schedule: data.schedule,
           prepayments: data.prepayments || [],
           rateChanges: data.rateChanges || [],
+          repaymentAccount: data.repaymentAccount || null,
           hasData: true,
           isLoading: false,
           syncStatus: { ...get().syncStatus, syncing: false, lastSync: updatedAt, online: true },
@@ -298,6 +351,7 @@ export const useLoanStore = create<LoanStore>((set, get) => ({
       schedule: state.schedule,
       prepayments: state.prepayments,
       rateChanges: state.rateChanges,
+      repaymentAccount: state.repaymentAccount || undefined,
       meta: { createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() },
     };
     const result = await saveToServer(data);
